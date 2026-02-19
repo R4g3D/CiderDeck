@@ -56,6 +56,10 @@ class BaseInspector {
                     speed: 40,
                     pause: 2000
                 }
+            },
+            playlist: {
+                playlistId: '',
+                shouldShuffle: false
             }
         };
 

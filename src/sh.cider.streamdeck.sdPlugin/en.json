@@ -6,17 +6,17 @@
     "Name": "Cider Playback", 
     "Tooltip": "Provides various controls for managing your media through Cider."
   },
-  "sh.cider.streamdeck.songname": {
-    "Name": "Song Name", 
-    "Tooltip": "Provides a tile to show the currently playing song from Cider."
-  },
-  "sh.cider.streamdeck.albumart": {
-    "Name": "Album Art", 
-    "Tooltip": "Provides a tile to show the currently playing song's Album Art from Cider."
+  "sh.cider.streamdeck.ciderlogo": {
+    "Name": "Launch / Now Playing",
+    "Tooltip": "Shows Cider when offline and now-playing artwork with song info when online."
   },
   "sh.cider.streamdeck.toggle": {
     "Name": "Toggle Playback", 
     "Tooltip": "Provides a tile to toggle the currently playing song in Cider."
+  },
+  "sh.cider.streamdeck.playlist": {
+    "Name": "Play Playlist",
+    "Tooltip": "Starts a configured Apple Music playlist in Cider."
   },
   "sh.cider.streamdeck.skip": {
     "Name": "Skip", 

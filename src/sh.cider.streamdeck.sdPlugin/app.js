@@ -36,11 +36,10 @@ const actions = {
     shuffleAction: new Action('sh.cider.streamdeck.shuffle'),
     skipAction: new Action('sh.cider.streamdeck.skip'),
     previousAction: new Action('sh.cider.streamdeck.previous'),
-    songNameAction: new Action('sh.cider.streamdeck.songname'),
-    albumArtAction: new Action('sh.cider.streamdeck.albumart'),
     likeAction: new Action('sh.cider.streamdeck.like'),
     dislikeAction: new Action('sh.cider.streamdeck.dislike'),
     addToLibraryAction: new Action('sh.cider.streamdeck.addtolibrary'),
+    playlistAction: new Action('sh.cider.streamdeck.playlist'),
     volumeUpAction: new Action('sh.cider.streamdeck.volumeup'),
     volumeDownAction: new Action('sh.cider.streamdeck.volumedown'),
     ciderLogoAction: new Action('sh.cider.streamdeck.ciderlogo'),
@@ -53,14 +52,13 @@ window.actions = actions;
 // Offline states for actions
 const offlineStates = {
     'sh.cider.streamdeck.playback': 1,
-    'sh.cider.streamdeck.songname': 0,
-    'sh.cider.streamdeck.albumart': 1,
     'sh.cider.streamdeck.toggle': 2,
     'sh.cider.streamdeck.repeat': 3,
     'sh.cider.streamdeck.shuffle': 2,
     'sh.cider.streamdeck.volumeup': 1,
     'sh.cider.streamdeck.volumedown': 1,
     'sh.cider.streamdeck.addtolibrary': 2,
+    'sh.cider.streamdeck.playlist': 1,
     'sh.cider.streamdeck.dislike': 2,
     'sh.cider.streamdeck.like': 2,
     'sh.cider.streamdeck.skip': 1,
@@ -107,41 +105,6 @@ Object.keys(actions).forEach(actionKey => {
             window.contexts[actionKey].push(context);
             console.debug(`[DEBUG] [Context] Context added for ${actionKey}: ${context}`);
         }
-        
-        // Handle song display settings if this is a song name action
-        if (actionKey === 'songNameAction') {
-            if (payload.settings?.songDisplaySettings) {
-                console.debug(`[DEBUG] [SongDisplay] Received settings on appearance:`, payload.settings.songDisplaySettings);
-                cacheManager.set('songDisplaySettings', payload.settings.songDisplaySettings);
-                
-                // Initialize the song renderer if it hasn't been yet
-                if (!window.songDisplayRenderer) {
-                    console.debug('[DEBUG] [SongDisplay] Initializing song display renderer on first appearance');
-                    window.songDisplayRenderer = new SongDisplayRenderer();
-                }
-                
-                // Update renderer configuration
-                window.songDisplayRenderer.updateSettings(payload.settings.songDisplaySettings);
-                
-                // Update display immediately if we have song info
-                if (cacheManager.get('song')) {
-                    CiderDeckSongDisplay.updateCustomSongDisplay();
-                }
-            }
-            
-            // Add event handler for settings changes
-            action.onDidReceiveSettings(function(jsn) {
-                console.debug(`[DEBUG] [SongDisplay] Received updated settings:`, jsn.payload.settings);
-                if (jsn.payload.settings?.songDisplaySettings) {
-                    cacheManager.set('songDisplaySettings', jsn.payload.settings.songDisplaySettings);
-                    // Update renderer with new settings
-                    if (window.songDisplayRenderer) {
-                        window.songDisplayRenderer.updateSettings(jsn.payload.settings.songDisplaySettings);
-                        CiderDeckSongDisplay.updateCustomSongDisplay();
-                    }
-                }
-            });
-        }
     });
 
     action.onWillDisappear(({ context }) => {
@@ -151,9 +114,9 @@ Object.keys(actions).forEach(actionKey => {
             console.debug(`[DEBUG] [Context] Context removed for ${actionKey}: ${context}`);
         }
 
-        if (actionKey === 'ciderPlaybackAction' || actionKey === 'albumArtAction') {
-            if (!window.contexts.ciderPlaybackAction[0] && !window.contexts.albumArtAction[0]) {
-                console.debug(`[DEBUG] [Action] ciderPlaybackAction and albumArtAction disappeared.`);
+        if (actionKey === 'ciderPlaybackAction' || actionKey === 'ciderLogoAction') {
+            if (!window.contexts.ciderPlaybackAction[0] && !window.contexts.ciderLogoAction[0]) {
+                console.debug(`[DEBUG] [Action] ciderPlaybackAction and ciderLogoAction disappeared.`);
                 CiderDeckMarquee.clearMarquee();
                 window.artworkCache = null;
                 window.songCache = null;
@@ -161,7 +124,7 @@ Object.keys(actions).forEach(actionKey => {
         }
     });
 
-    action.onKeyDown(() => {
+    action.onKeyDown((jsonObj) => {
         console.debug(`[DEBUG] [Action] ${actionKey} action triggered.`);
         switch (actionKey) {
             case 'toggleAction':
@@ -195,6 +158,9 @@ Object.keys(actions).forEach(actionKey => {
             case 'addToLibraryAction':
                 CiderDeckLibrary.addToLibrary();
                 break;
+            case 'playlistAction':
+                CiderDeckLibrary.playPlaylist(jsonObj?.payload?.settings || {});
+                break;
             case 'volumeUpAction':
                 CiderDeckVolume.handleVolumeChange(null, null, 'up');
                 break;
@@ -202,7 +168,18 @@ Object.keys(actions).forEach(actionKey => {
                 CiderDeckVolume.handleVolumeChange(null, null, 'down');
                 break;
             case 'ciderLogoAction':
-                console.warn(`[DEBUG] [Action] Interesting decision?`);
+                if (window.isConnected) {
+                    CiderDeckUtils.comRPC("POST", "playpause");
+                    setTimeout(() => {
+                        CiderDeckUtils.comRPC("GET", "now-playing").then(data => {
+                            if (data && data.status === "ok") {
+                                CiderDeckPlayback.setManualData(data.info);
+                            }
+                        });
+                    }, 1000);
+                } else {
+                    launchCiderApp();
+                }
                 break;
             default:
                 console.warn(`[DEBUG] [Action] No handler for ${actionKey}`);
@@ -279,6 +256,10 @@ const defaultSettings = {
     },
     favorite: {
         alsoAddToLibrary: false
+    },
+    playlist: {
+        playlistId: '',
+        shouldShuffle: false
     },
     dial: {
         rotationAction: 'volume',
@@ -652,6 +633,12 @@ async function initialize() {
 //  Utility Functions
 // ==========================================================================
 
+function launchCiderApp() {
+    // Cider registers a custom URI scheme on both Windows and macOS.
+    // Opening it asks the OS to start the app if it is installed.
+    $SD.openUrl('cider://');
+}
+
 function setOfflineStates() {
     Object.keys(actions).forEach(actionKey => {
         const contexts = window.contexts[actionKey] || [];
@@ -700,10 +687,6 @@ function resetStates() {
                 $SD.setState(context, 0);
             } else {
                 $SD.setState(context, 0);
-            }
-
-            if (actionKey === 'albumArtAction') {
-                $SD.setImage(context, "actions/assets/buttons/icon", 0);
             }
 
             if (actionKey === 'ciderPlaybackAction') {

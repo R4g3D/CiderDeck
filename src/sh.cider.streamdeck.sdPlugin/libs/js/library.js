@@ -20,6 +20,7 @@ const libraryLogger = window.CiderDeckLogger?.createLogger('Library') || {
 // Create subcategory loggers
 const ratingLogger = libraryLogger.category('Rating');
 const stationLogger = libraryLogger.category('Station');
+const playlistLogger = libraryLogger.category('Playlist');
 
 /**
  * Adds the current song to the user's library
@@ -132,6 +133,67 @@ async function addToPlaylist(playlistId) {
     }
 }
 
+function parsePlaylistId(rawValue) {
+    if (!rawValue || typeof rawValue !== 'string') {
+        return '';
+    }
+
+    const trimmed = rawValue.trim();
+    if (!trimmed) {
+        return '';
+    }
+
+    // Supports full Apple Music URLs like:
+    // https://music.apple.com/us/playlist/name/pl.u-xxxx
+    const urlMatch = trimmed.match(/\/playlist\/[^/]+\/([^/?#]+)/i);
+    if (urlMatch && urlMatch[1]) {
+        return urlMatch[1];
+    }
+
+    return trimmed;
+}
+
+/**
+ * Play a specific playlist by id or Apple Music playlist URL.
+ * @param {Object} settings Action settings from property inspector.
+ */
+async function playPlaylist(settings = {}) {
+    const playlistId = parsePlaylistId(settings.playlistId);
+    const shouldShuffle = Boolean(settings.shouldShuffle);
+
+    if (!playlistId) {
+        playlistLogger.warn("No playlist ID configured for playlist action");
+        return;
+    }
+
+    const rpc = window.CiderDeckUtils?.comRPC;
+    if (!rpc) {
+        playlistLogger.error("CiderDeckUtils.comRPC not available");
+        return;
+    }
+
+    const payloads = [
+        { kind: "playlist", id: playlistId, shuffle: shouldShuffle },
+        { type: "playlist", id: playlistId, shuffle: shouldShuffle },
+        { playlistId, shuffle: shouldShuffle }
+    ];
+
+    for (const payload of payloads) {
+        try {
+            const response = await rpc("POST", "play", true, payload);
+            if (response && response.status === "ok") {
+                playlistLogger.info(`Started playlist ${playlistId} (shuffle: ${shouldShuffle})`);
+                return;
+            }
+            playlistLogger.debug(`Playlist play attempt returned non-ok response: ${JSON.stringify(response)}`);
+        } catch (error) {
+            playlistLogger.debug(`Playlist play attempt failed with payload ${JSON.stringify(payload)}: ${error}`);
+        }
+    }
+
+    playlistLogger.error(`Failed to start playlist ${playlistId}`);
+}
+
 /**
  * Generate an icon for a playlist
  */
@@ -171,6 +233,7 @@ window.CiderDeckLibrary = {
     setRating,
     playStation,
     playMix,
+    playPlaylist,
     findBindedKeys,
     bindPlaylist,
     addToPlaylist,

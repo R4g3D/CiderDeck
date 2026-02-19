@@ -51,49 +51,6 @@
 			"PropertyInspectorPath": "actions/inspectors/dial-inspector.html"
 		},
 		{
-			"Icon": "actions/assets/app/desk-name-plate",
-			"Name": "Song Display",
-			"Controllers": ["Keypad"],
-			"DisableAutomaticStates": true,
-			"Encoder": {
-				"layout": "$B1",
-				"TriggerDescription": {
-					"Touch": "Nothing happens when you press this button."
-				}
-			},
-			"States": [
-				{
-					"Image": "actions/assets/buttons/blank"
-				}
-			],
-			"Tooltip": "Provides a tile to show the currently playing song from Cider.",
-			"UUID": "sh.cider.streamdeck.songname",
-			"PropertyInspectorPath": "actions/inspectors/song-display-inspector.html"
-		},
-		{
-			"Icon": "actions/assets/app/image-sparkle",
-			"Name": "Album Art",
-			"Controllers": ["Keypad"],
-			"DisableAutomaticStates": true,
-			"Encoder": {
-				"layout": "$B1",
-				"TriggerDescription": {
-					"Touch": "Nothing happens when you press this button."
-				}
-			},
-			"States": [
-				{
-					"Image": "actions/assets/buttons/icon"
-				},
-				{
-					"Image": "actions/assets/buttons/offline/icon"
-				}
-			],
-			"Tooltip": "Provides a tile to show the currently playing song's Album Art from Cider.",
-			"UUID": "sh.cider.streamdeck.albumart",
-			"PropertyInspectorPath": "actions/inspectors/inspector.html"
-		},
-		{
 			"Icon": "actions/assets/app/media-play-pause-toggle",
 			"Name": "Toggle Playback",
 			"Controllers": ["Keypad"],
@@ -247,6 +204,29 @@
 			"PropertyInspectorPath": "actions/inspectors/inspector.html"
 		},
 		{
+			"Icon": "actions/assets/app/media-playlist",
+			"Name": "Play Playlist",
+			"Controllers": ["Keypad"],
+			"DisableAutomaticStates": true,
+			"Encoder": {
+				"layout": "$B1",
+				"TriggerDescription": {
+					"Touch": "Pressing this button will start your configured playlist in Cider."
+				}
+			},
+			"States": [
+				{
+					"Image": "actions/assets/buttons/media-playlist"
+				},
+				{
+					"Image": "actions/assets/buttons/offline/media-playlist"
+				}
+			],
+			"Tooltip": "Starts a configured Apple Music playlist in Cider.",
+			"UUID": "sh.cider.streamdeck.playlist",
+			"PropertyInspectorPath": "actions/inspectors/playlist-inspector.html"
+		},
+		{
 			"Icon": "actions/assets/app/thumbs-down",
 			"Name": "Dislike",
 			"Controllers": ["Keypad"],
@@ -345,13 +325,13 @@
 		},
 		{
 			"Icon": "actions/assets/app/icon",
-			"Name": "Cider Logo",
+			"Name": "Launch / Now Playing",
 			"Controllers": ["Keypad"],
 			"DisableAutomaticStates": true,
 			"Encoder": {
 				"layout": "$B1",
 				"TriggerDescription": {
-					"Touch": "Nothing happens when you press this button."
+					"Touch": "Launches Cider when it is closed, or toggles Play/Pause when Cider is running."
 				}
 			},
 			"States": [
@@ -362,7 +342,7 @@
 					"Image": "actions/assets/buttons/offline/icon"
 				}
 			],
-			"Tooltip": "Simple tile to show the Cider logo, useful for decorative purposes.",
+			"Tooltip": "Shows Cider when offline and now-playing artwork with song info when online.",
 			"UUID": "sh.cider.streamdeck.ciderlogo",
 			"PropertyInspectorPath": "actions/inspectors/inspector.html"
 		}

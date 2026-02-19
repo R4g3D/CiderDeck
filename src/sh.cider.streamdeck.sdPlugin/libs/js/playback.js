@@ -21,6 +21,7 @@ const logger = window.CiderDeckLogger?.createLogger('Playback') || {
 const repeatLogger = logger.category('Repeat');
 const shuffleLogger = logger.category('Shuffle');
 const artworkLogger = window.CiderDeckLogger?.createLogger('Artwork') || logger;
+const nowPlayingTileLogger = logger.category('NowPlayingTile');
 
 // Debounce function for logging
 const debounce = (func, wait) => {
@@ -33,6 +34,102 @@ const debounce = (func, wait) => {
 
 // Debounced version of the logger.info method (200ms)
 const debouncedPlaybackInfo = debounce(logger.info.bind(logger), 200);
+
+function truncateOverlayText(ctx, text, maxWidth) {
+    if (!text) return '';
+    if (ctx.measureText(text).width <= maxWidth) return text;
+
+    const ellipsis = '...';
+    let result = text;
+    while (result.length > 0 && ctx.measureText(result + ellipsis).width > maxWidth) {
+        result = result.slice(0, -1);
+    }
+    return `${result}${ellipsis}`;
+}
+
+function renderNowPlayingTile(artworkDataUrl, title, artist) {
+    return new Promise((resolve, reject) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 144;
+        canvas.height = 144;
+
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+
+        img.onload = () => {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            const overlayHeight = 48;
+            const y = canvas.height - overlayHeight;
+            const gradient = ctx.createLinearGradient(0, y, 0, canvas.height);
+            gradient.addColorStop(0, 'rgba(0, 0, 0, 0.15)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0.85)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, y, canvas.width, overlayHeight);
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.textAlign = 'left';
+
+            const horizontalPadding = 8;
+            const maxWidth = canvas.width - (horizontalPadding * 2);
+
+            ctx.font = 'bold 14px sans-serif';
+            const safeTitle = truncateOverlayText(ctx, title || 'Unknown song', maxWidth);
+            ctx.fillText(safeTitle, horizontalPadding, canvas.height - 28, maxWidth);
+
+            ctx.font = '12px sans-serif';
+            const safeArtist = truncateOverlayText(ctx, artist || 'Unknown artist', maxWidth);
+            ctx.fillText(safeArtist, horizontalPadding, canvas.height - 11, maxWidth);
+
+            resolve(canvas.toDataURL('image/png'));
+        };
+
+        img.onerror = reject;
+        img.src = artworkDataUrl;
+    });
+}
+
+async function updateNowPlayingActionTile(artwork, title, artist) {
+    const contexts = window.contexts?.ciderLogoAction || [];
+    if (contexts.length === 0) {
+        return;
+    }
+
+    if (!window.isConnected) {
+        contexts.forEach(context => $SD.setState(context, 1));
+        return;
+    }
+
+    if (!artwork) {
+        contexts.forEach(context => {
+            $SD.setState(context, 0);
+            $SD.setImage(context, "actions/assets/buttons/icon", 0);
+        });
+        return;
+    }
+
+    const utils = window.CiderDeckUtils;
+    if (!utils?.getBase64Image) {
+        nowPlayingTileLogger.warn('CiderDeckUtils.getBase64Image not available');
+        return;
+    }
+
+    try {
+        const art64 = await utils.getBase64Image(artwork);
+        const compositeImage = await renderNowPlayingTile(art64, title, artist);
+        contexts.forEach(context => {
+            $SD.setState(context, 0);
+            if (utils.setImage) {
+                utils.setImage(context, compositeImage, 0);
+            } else {
+                $SD.setImage(context, compositeImage, 0);
+            }
+        });
+    } catch (error) {
+        nowPlayingTileLogger.error(`Failed to render now-playing tile: ${error}`);
+    }
+}
 
 // Playback state tracking
 let currentRepeatMode = 0; // 0: off, 1: repeat one, 2: repeat all, 3: disabled
@@ -118,6 +215,7 @@ async function setData({ state, attributes }) {
     const songName = attributes.name;
     const artistName = attributes.artistName;
     const albumName = attributes.albumName;
+    let shouldUpdateNowPlayingTile = false;
 
     debouncedPlaybackInfo(`Processing: "${songName}" by ${artistName} from ${albumName}`);
     logger.debug(`Artwork URL: ${artwork}`);
@@ -125,19 +223,12 @@ async function setData({ state, attributes }) {
     let logMessage = "[DEBUG] [Playback] ";
     
     if (cacheManager.checkAndUpdate('artwork', artwork) && artwork) {
+        shouldUpdateNowPlayingTile = true;
         artworkLogger.debug(`Updating artwork from: ${artwork}`);
         const utils = window.CiderDeckUtils;
         if (utils && utils.getBase64Image) {
             utils.getBase64Image(artwork).then(art64 => {
                 artworkLogger.debug(`Successfully converted artwork to base64`);
-                window.contexts.albumArtAction?.forEach(context => {
-                    artworkLogger.debug(`Setting album art for context: ${context}`);
-                    if (utils.setImage) {
-                        utils.setImage(context, art64, 0);
-                    } else {
-                        $SD.setImage(context, art64, 0);
-                    }
-                });
                 if (window.contexts.ciderPlaybackAction && window.contexts.ciderPlaybackAction[0]) {
                     // Check if user wants to show artwork on dial or use default Cider logo
                     const showArtworkOnDial = window.ciderDeckSettings?.dial?.showArtworkOnDial ?? true;
@@ -160,6 +251,7 @@ async function setData({ state, attributes }) {
     }
     
     if (cacheManager.checkAndUpdate('song', songName)) {
+        shouldUpdateNowPlayingTile = true;
         // Get dial and song display settings
         const dialSettings = window.ciderDeckSettings?.dial || {};
         
@@ -238,6 +330,14 @@ async function setData({ state, attributes }) {
         }
         
         logMessage += `Updated song: ${songName}; Artist: ${artistName}; Album: ${albumName}; `;
+    }
+    
+    if (cacheManager.checkAndUpdate('artist', artistName)) {
+        shouldUpdateNowPlayingTile = true;
+    }
+
+    if (shouldUpdateNowPlayingTile) {
+        updateNowPlayingActionTile(artwork, songName, artistName);
     }
 
     const toggleIcon = state === "playing" ? 'pause.png' : 'play.png';
