@@ -571,6 +571,7 @@ async function pollNowPlaying() {
 
         CiderDeckPlayback.setManualData(data.info);
         CiderDeckPlayback.setAdaptiveData(data.info);
+        CiderDeckPlayback.refreshNowPlayingTile?.();
     } catch (error) {
         console.debug("[DEBUG] [Polling] now-playing poll failed:", error?.message || error);
     }

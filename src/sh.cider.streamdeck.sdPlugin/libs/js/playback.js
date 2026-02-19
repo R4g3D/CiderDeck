@@ -131,6 +131,17 @@ async function updateNowPlayingActionTile(artwork, title, artist) {
     }
 }
 
+async function refreshNowPlayingTile() {
+    const cacheManager = window.cacheManager;
+    if (!cacheManager) return;
+
+    const artwork = cacheManager.get('artwork');
+    const songName = cacheManager.get('song');
+    const artistName = cacheManager.get('artist');
+
+    await updateNowPlayingActionTile(artwork, songName, artistName);
+}
+
 // Playback state tracking
 let currentRepeatMode = 0; // 0: off, 1: repeat one, 2: repeat all, 3: disabled
 let currentShuffleMode = 0; // 0: off, 1: on, 2: disabled
@@ -541,6 +552,7 @@ window.CiderDeckPlayback = {
     goBack,
     updatePlaybackModes,
     setPlaybackTime,
+    refreshNowPlayingTile,
     formatSongInfo,
     getCurrentRepeatMode: () => currentRepeatMode,
     getCurrentShuffleMode: () => currentShuffleMode,
