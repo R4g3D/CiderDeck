@@ -325,13 +325,13 @@
 		},
 		{
 			"Icon": "actions/assets/app/icon",
-			"Name": "Launch / Now Playing",
+			"Name": "Now Playing",
 			"Controllers": ["Keypad"],
 			"DisableAutomaticStates": true,
 			"Encoder": {
 				"layout": "$B1",
 				"TriggerDescription": {
-					"Touch": "Launches Cider when it is closed, or toggles Play/Pause when Cider is running."
+					"Touch": "Pressing this button will toggle playback (Play/Pause) in Cider."
 				}
 			},
 			"States": [
@@ -342,9 +342,10 @@
 					"Image": "actions/assets/buttons/offline/icon"
 				}
 			],
-			"Tooltip": "Shows Cider when offline and now-playing artwork with song info when online.",
+			"Tooltip": "Shows now-playing artwork with song info and toggles playback in Cider.",
 			"UUID": "sh.cider.streamdeck.ciderlogo",
 			"PropertyInspectorPath": "actions/inspectors/inspector.html"
 		}
 	]
 }
+

@@ -133,7 +133,7 @@ async function addToPlaylist(playlistId) {
     }
 }
 
-function parsePlaylistId(rawValue) {
+function normalizePlaylistUrl(rawValue) {
     if (!rawValue || typeof rawValue !== 'string') {
         return '';
     }
@@ -143,14 +143,24 @@ function parsePlaylistId(rawValue) {
         return '';
     }
 
-    // Supports full Apple Music URLs like:
-    // https://music.apple.com/us/playlist/name/pl.u-xxxx
-    const urlMatch = trimmed.match(/\/playlist\/[^/]+\/([^/?#]+)/i);
-    if (urlMatch && urlMatch[1]) {
-        return urlMatch[1];
+    // Full Apple Music URL supplied by user.
+    if (/^https?:\/\/music\.apple\.com\//i.test(trimmed)) {
+        return trimmed;
     }
 
-    return trimmed;
+    // Personal library playlist id from share links:
+    // https://music.apple.com/library/playlist/p.xxxxx
+    if (/^p\.[a-z0-9]+$/i.test(trimmed)) {
+        return `https://music.apple.com/us/library/playlist/${trimmed}`;
+    }
+
+    // Editorial / public playlist ids (e.g. pl.u-xxxx).
+    if (/^pl\./i.test(trimmed)) {
+        return `https://music.apple.com/us/playlist/playlist/${trimmed}`;
+    }
+
+    // Fallback: treat as library playlist id.
+    return `https://music.apple.com/us/library/playlist/${trimmed}`;
 }
 
 /**
@@ -158,10 +168,10 @@ function parsePlaylistId(rawValue) {
  * @param {Object} settings Action settings from property inspector.
  */
 async function playPlaylist(settings = {}) {
-    const playlistId = parsePlaylistId(settings.playlistId);
+    const playUrl = normalizePlaylistUrl(settings.playlistId);
     const shouldShuffle = Boolean(settings.shouldShuffle);
 
-    if (!playlistId) {
+    if (!playUrl) {
         playlistLogger.warn("No playlist ID configured for playlist action");
         return;
     }
@@ -172,26 +182,21 @@ async function playPlaylist(settings = {}) {
         return;
     }
 
-    const payloads = [
-        { kind: "playlist", id: playlistId, shuffle: shouldShuffle },
-        { type: "playlist", id: playlistId, shuffle: shouldShuffle },
-        { playlistId, shuffle: shouldShuffle }
-    ];
-
-    for (const payload of payloads) {
-        try {
-            const response = await rpc("POST", "play", true, payload);
-            if (response && response.status === "ok") {
-                playlistLogger.info(`Started playlist ${playlistId} (shuffle: ${shouldShuffle})`);
-                return;
+    try {
+        const response = await rpc("POST", "play-url", true, { url: playUrl });
+        if (response && response.status === "ok") {
+            playlistLogger.info(`Started playlist from URL: ${playUrl}`);
+            if (shouldShuffle) {
+                playlistLogger.warn("Shuffle option is currently not applied for play-url playback.");
             }
-            playlistLogger.debug(`Playlist play attempt returned non-ok response: ${JSON.stringify(response)}`);
-        } catch (error) {
-            playlistLogger.debug(`Playlist play attempt failed with payload ${JSON.stringify(payload)}: ${error}`);
+            return;
         }
+        playlistLogger.debug(`Playlist play-url returned non-ok response: ${JSON.stringify(response)}`);
+    } catch (error) {
+        playlistLogger.debug(`Playlist play-url request failed for ${playUrl}: ${error}`);
     }
 
-    playlistLogger.error(`Failed to start playlist ${playlistId}`);
+    playlistLogger.error(`Failed to start playlist from URL: ${playUrl}`);
 }
 
 /**

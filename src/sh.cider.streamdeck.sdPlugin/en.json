@@ -7,8 +7,8 @@
     "Tooltip": "Provides various controls for managing your media through Cider."
   },
   "sh.cider.streamdeck.ciderlogo": {
-    "Name": "Launch / Now Playing",
-    "Tooltip": "Shows Cider when offline and now-playing artwork with song info when online."
+    "Name": "Now Playing",
+    "Tooltip": "Shows now-playing artwork with song info and toggles playback in Cider."
   },
   "sh.cider.streamdeck.toggle": {
     "Name": "Toggle Playback", 
@@ -33,3 +33,4 @@
     "Button": "Button"
   }
 }
+

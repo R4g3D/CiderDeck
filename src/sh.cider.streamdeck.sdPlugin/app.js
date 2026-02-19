@@ -168,18 +168,14 @@ Object.keys(actions).forEach(actionKey => {
                 CiderDeckVolume.handleVolumeChange(null, null, 'down');
                 break;
             case 'ciderLogoAction':
-                if (window.isConnected) {
-                    CiderDeckUtils.comRPC("POST", "playpause");
-                    setTimeout(() => {
-                        CiderDeckUtils.comRPC("GET", "now-playing").then(data => {
-                            if (data && data.status === "ok") {
-                                CiderDeckPlayback.setManualData(data.info);
-                            }
-                        });
-                    }, 1000);
-                } else {
-                    launchCiderApp();
-                }
+                CiderDeckUtils.comRPC("POST", "playpause");
+                setTimeout(() => {
+                    CiderDeckUtils.comRPC("GET", "now-playing").then(data => {
+                        if (data && data.status === "ok") {
+                            CiderDeckPlayback.setManualData(data.info);
+                        }
+                    });
+                }, 1000);
                 break;
             default:
                 console.warn(`[DEBUG] [Action] No handler for ${actionKey}`);
@@ -633,12 +629,6 @@ async function initialize() {
 //  Utility Functions
 // ==========================================================================
 
-function launchCiderApp() {
-    // Cider registers a custom URI scheme on both Windows and macOS.
-    // Opening it asks the OS to start the app if it is installed.
-    $SD.openUrl('cider://');
-}
-
 function setOfflineStates() {
     Object.keys(actions).forEach(actionKey => {
         const contexts = window.contexts[actionKey] || [];
@@ -703,3 +693,4 @@ function resetStates() {
         });
     });
 }
+

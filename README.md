@@ -6,7 +6,6 @@ CiderDeck is a plugin for the Elgato Stream Deck that allows you to control your
 
 Using CiderDeck you can do the following
 
-- Launch Cider when it is closed.
 - Show now-playing artwork, song, and artist on a tile.
 - Skip/Rewind
 - Play/Pause
@@ -37,3 +36,4 @@ Go into the [Releases](https://github.com/ciderapp/CiderDeck/releases) and downl
 This repo includes a GitHub Actions workflow that builds a `.streamDeckPlugin` package and publishes it to GitHub Releases when you push a tag that starts with `v` (for example: `v3.2.1`).
 
 Done!
+
