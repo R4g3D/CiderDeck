@@ -28,8 +28,6 @@ const AppState = {
 };
 
 let currentAppState = AppState.STARTING_UP;
-let nowPlayingPollIntervalId = null;
-const NOW_PLAYING_POLL_INTERVAL_MS = 2000;
 
 // Initialize actions and contexts
 const actions = {
@@ -106,6 +104,12 @@ Object.keys(actions).forEach(actionKey => {
         if (!window.contexts[actionKey].includes(context)) {
             window.contexts[actionKey].push(context);
             console.debug(`[DEBUG] [Context] Context added for ${actionKey}: ${context}`);
+        }
+
+        // Immediately refresh playback-related actions when they become visible
+        // so page switches do not show stale song metadata/artwork.
+        if (actionKey === 'ciderLogoAction' || actionKey === 'ciderPlaybackAction' || actionKey === 'toggleAction') {
+            pollNowPlaying();
         }
     });
 
@@ -501,7 +505,6 @@ function startWebSocket() {
                 window.isConnected = true;
                 resetStates();
                 initialize().then(() => {
-                    startNowPlayingPolling();
                     currentAppState = AppState.READY;
                     console.log("[INFO] [Startup] Startup process completed successfully.");
                 }).catch(error => {
@@ -542,7 +545,6 @@ function startWebSocket() {
 }
 
 function handleDisconnection() {
-    stopNowPlayingPolling();
     currentAppState = AppState.ERROR;
     clearCachedData();
     setOfflineStates();
@@ -572,18 +574,6 @@ async function pollNowPlaying() {
     } catch (error) {
         console.debug("[DEBUG] [Polling] now-playing poll failed:", error?.message || error);
     }
-}
-
-function startNowPlayingPolling() {
-    stopNowPlayingPolling();
-    pollNowPlaying();
-    nowPlayingPollIntervalId = setInterval(pollNowPlaying, NOW_PLAYING_POLL_INTERVAL_MS);
-}
-
-function stopNowPlayingPolling() {
-    if (!nowPlayingPollIntervalId) return;
-    clearInterval(nowPlayingPollIntervalId);
-    nowPlayingPollIntervalId = null;
 }
 
 function clearCachedData() {
