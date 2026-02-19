@@ -109,7 +109,7 @@ Object.keys(actions).forEach(actionKey => {
         // Immediately refresh playback-related actions when they become visible
         // so page switches do not show stale song metadata/artwork.
         if (actionKey === 'ciderLogoAction' || actionKey === 'ciderPlaybackAction' || actionKey === 'toggleAction') {
-            pollNowPlaying();
+            requestNowPlayingRefresh();
         }
     });
 
@@ -576,6 +576,13 @@ async function pollNowPlaying() {
     }
 }
 
+function requestNowPlayingRefresh() {
+    // Run an immediate refresh plus short retries to handle page-switch timing.
+    pollNowPlaying();
+    setTimeout(pollNowPlaying, 400);
+    setTimeout(pollNowPlaying, 1200);
+}
+
 function clearCachedData() {
     // Clear all cached data using the cache manager
     cacheManager.clearAll();
@@ -611,10 +618,8 @@ function handlePlaybackEvent({ data, type }) {
             break;
         case "playbackStatus.playbackTimeDidChange":
             CiderDeckPlayback.setPlaybackStatus(data.isPlaying);
-            if (window.contexts.ciderPlaybackAction[0]) {
-                window.currentPlaybackTime = data.currentPlaybackTime;
-                CiderDeckPlayback.setPlaybackTime(data.currentPlaybackTime, data.currentPlaybackDuration);
-            }
+            window.currentPlaybackTime = data.currentPlaybackTime;
+            CiderDeckPlayback.setPlaybackTime(data.currentPlaybackTime, data.currentPlaybackDuration);
             break;
         case "playerStatus.volumeDidChange":
             if (window.contexts.ciderPlaybackAction[0]) {
