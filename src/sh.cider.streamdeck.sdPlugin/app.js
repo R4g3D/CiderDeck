@@ -28,6 +28,8 @@ const AppState = {
 };
 
 let currentAppState = AppState.STARTING_UP;
+let nowPlayingPollIntervalId = null;
+const NOW_PLAYING_POLL_INTERVAL_MS = 2000;
 
 // Initialize actions and contexts
 const actions = {
@@ -499,6 +501,7 @@ function startWebSocket() {
                 window.isConnected = true;
                 resetStates();
                 initialize().then(() => {
+                    startNowPlayingPolling();
                     currentAppState = AppState.READY;
                     console.log("[INFO] [Startup] Startup process completed successfully.");
                 }).catch(error => {
@@ -539,9 +542,48 @@ function startWebSocket() {
 }
 
 function handleDisconnection() {
+    stopNowPlayingPolling();
     currentAppState = AppState.ERROR;
     clearCachedData();
     setOfflineStates();
+}
+
+async function pollNowPlaying() {
+    if (!window.isConnected || !window.token) {
+        return;
+    }
+
+    const hasNowPlayingTile = Boolean(window.contexts?.ciderLogoAction?.length);
+    const hasPlaybackControl = Boolean(window.contexts?.ciderPlaybackAction?.length);
+    const hasPlaybackToggle = Boolean(window.contexts?.toggleAction?.length);
+
+    if (!hasNowPlayingTile && !hasPlaybackControl && !hasPlaybackToggle) {
+        return;
+    }
+
+    try {
+        const data = await CiderDeckUtils.comRPC("GET", "now-playing");
+        if (!data || data.status !== "ok" || !data.info || data.info === 0) {
+            return;
+        }
+
+        CiderDeckPlayback.setManualData(data.info);
+        CiderDeckPlayback.setAdaptiveData(data.info);
+    } catch (error) {
+        console.debug("[DEBUG] [Polling] now-playing poll failed:", error?.message || error);
+    }
+}
+
+function startNowPlayingPolling() {
+    stopNowPlayingPolling();
+    pollNowPlaying();
+    nowPlayingPollIntervalId = setInterval(pollNowPlaying, NOW_PLAYING_POLL_INTERVAL_MS);
+}
+
+function stopNowPlayingPolling() {
+    if (!nowPlayingPollIntervalId) return;
+    clearInterval(nowPlayingPollIntervalId);
+    nowPlayingPollIntervalId = null;
 }
 
 function clearCachedData() {
