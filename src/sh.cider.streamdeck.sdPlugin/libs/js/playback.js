@@ -22,6 +22,7 @@ const repeatLogger = logger.category('Repeat');
 const shuffleLogger = logger.category('Shuffle');
 const artworkLogger = window.CiderDeckLogger?.createLogger('Artwork') || logger;
 const nowPlayingTileLogger = logger.category('NowPlayingTile');
+let nowPlayingRenderRequestId = 0;
 
 // Debounce function for logging
 const debounce = (func, wait) => {
@@ -147,6 +148,7 @@ function renderNowPlayingTile(artworkDataUrl, title, artist, playbackState) {
 }
 
 async function updateNowPlayingActionTile(artwork, title, artist, playbackState) {
+    const renderRequestId = ++nowPlayingRenderRequestId;
     const contexts = window.contexts?.ciderLogoAction || [];
     if (contexts.length === 0) {
         return;
@@ -174,6 +176,12 @@ async function updateNowPlayingActionTile(artwork, title, artist, playbackState)
     try {
         const art64 = await utils.getBase64Image(artwork);
         const compositeImage = await renderNowPlayingTile(art64, title, artist, playbackState);
+
+        // Ignore stale async render completions.
+        if (renderRequestId !== nowPlayingRenderRequestId) {
+            return;
+        }
+
         contexts.forEach(context => {
             $SD.setState(context, 0);
             if (utils.setImage) {

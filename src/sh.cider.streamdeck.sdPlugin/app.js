@@ -28,6 +28,9 @@ const AppState = {
 };
 
 let currentAppState = AppState.STARTING_UP;
+let pluginRefreshBurstActive = false;
+let pluginRefreshRetryTimeout1 = null;
+let pluginRefreshRetryTimeout2 = null;
 
 // Initialize actions and contexts
 const actions = {
@@ -584,10 +587,33 @@ async function pollNowPlaying() {
 }
 
 function requestPluginStateRefresh() {
+    // Coalesce many onWillAppear calls into one refresh burst.
+    if (pluginRefreshBurstActive) {
+        return;
+    }
+
+    pluginRefreshBurstActive = true;
+
+    if (pluginRefreshRetryTimeout1) {
+        clearTimeout(pluginRefreshRetryTimeout1);
+        pluginRefreshRetryTimeout1 = null;
+    }
+    if (pluginRefreshRetryTimeout2) {
+        clearTimeout(pluginRefreshRetryTimeout2);
+        pluginRefreshRetryTimeout2 = null;
+    }
+
     // Run an immediate refresh plus short retries to handle page-switch timing.
     pollNowPlaying();
-    setTimeout(pollNowPlaying, 400);
-    setTimeout(pollNowPlaying, 1200);
+    pluginRefreshRetryTimeout1 = setTimeout(() => {
+        pollNowPlaying();
+        pluginRefreshRetryTimeout1 = null;
+    }, 400);
+    pluginRefreshRetryTimeout2 = setTimeout(() => {
+        pollNowPlaying();
+        pluginRefreshRetryTimeout2 = null;
+        pluginRefreshBurstActive = false;
+    }, 1200);
 }
 
 function clearCachedData() {
