@@ -47,18 +47,57 @@ function truncateOverlayText(ctx, text, maxWidth) {
     return `${result}${ellipsis}`;
 }
 
-function renderNowPlayingTile(artworkDataUrl, title, artist) {
+function isPlaybackPaused(playbackState) {
+    if (typeof playbackState === 'string') {
+        return playbackState !== 'playing';
+    }
+    if (typeof playbackState === 'number') {
+        return playbackState !== 1;
+    }
+    if (typeof playbackState === 'boolean') {
+        return !playbackState;
+    }
+    return false;
+}
+
+function renderNowPlayingTile(artworkDataUrl, title, artist, playbackState) {
     return new Promise((resolve, reject) => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         canvas.width = 144;
         canvas.height = 144;
+        const paused = isPlaybackPaused(playbackState);
 
         const img = new Image();
         img.crossOrigin = 'anonymous';
 
         img.onload = () => {
+            if (paused) {
+                ctx.filter = 'grayscale(100%) brightness(65%)';
+            }
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            ctx.filter = 'none';
+
+            if (paused) {
+                // Add a subtle tint and pause badge to clearly indicate paused playback.
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const badgeSize = 36;
+                const badgeX = canvas.width - badgeSize - 8;
+                const badgeY = 8;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+                ctx.fillRect(badgeX, badgeY, badgeSize, badgeSize);
+
+                ctx.fillStyle = '#FFFFFF';
+                const barWidth = 6;
+                const barHeight = 16;
+                const barGap = 6;
+                const barsX = badgeX + (badgeSize - ((barWidth * 2) + barGap)) / 2;
+                const barsY = badgeY + (badgeSize - barHeight) / 2;
+                ctx.fillRect(barsX, barsY, barWidth, barHeight);
+                ctx.fillRect(barsX + barWidth + barGap, barsY, barWidth, barHeight);
+            }
 
             const overlayHeight = 48;
             const y = canvas.height - overlayHeight;
@@ -90,7 +129,7 @@ function renderNowPlayingTile(artworkDataUrl, title, artist) {
     });
 }
 
-async function updateNowPlayingActionTile(artwork, title, artist) {
+async function updateNowPlayingActionTile(artwork, title, artist, playbackState) {
     const contexts = window.contexts?.ciderLogoAction || [];
     if (contexts.length === 0) {
         return;
@@ -117,7 +156,7 @@ async function updateNowPlayingActionTile(artwork, title, artist) {
 
     try {
         const art64 = await utils.getBase64Image(artwork);
-        const compositeImage = await renderNowPlayingTile(art64, title, artist);
+        const compositeImage = await renderNowPlayingTile(art64, title, artist, playbackState);
         contexts.forEach(context => {
             $SD.setState(context, 0);
             if (utils.setImage) {
@@ -138,13 +177,15 @@ async function refreshNowPlayingTile() {
     const artwork = cacheManager.get('artwork');
     const songName = cacheManager.get('song');
     const artistName = cacheManager.get('artist');
+    const playbackState = cacheManager.get('status');
 
-    await updateNowPlayingActionTile(artwork, songName, artistName);
+    await updateNowPlayingActionTile(artwork, songName, artistName, playbackState);
 }
 
 // Playback state tracking
 let currentRepeatMode = 0; // 0: off, 1: repeat one, 2: repeat all, 3: disabled
 let currentShuffleMode = 0; // 0: off, 1: on, 2: disabled
+let lastNowPlayingPausedState = null;
 
 /**
  * Sets default playback states for all controls
@@ -227,6 +268,7 @@ async function setData({ state, attributes }) {
     const artistName = attributes.artistName;
     const albumName = attributes.albumName;
     let shouldUpdateNowPlayingTile = false;
+    const paused = isPlaybackPaused(state);
 
     debouncedPlaybackInfo(`Processing: "${songName}" by ${artistName} from ${albumName}`);
     logger.debug(`Artwork URL: ${artwork}`);
@@ -347,8 +389,13 @@ async function setData({ state, attributes }) {
         shouldUpdateNowPlayingTile = true;
     }
 
+    if (lastNowPlayingPausedState !== paused) {
+        lastNowPlayingPausedState = paused;
+        shouldUpdateNowPlayingTile = true;
+    }
+
     if (shouldUpdateNowPlayingTile) {
-        updateNowPlayingActionTile(artwork, songName, artistName);
+        updateNowPlayingActionTile(artwork, songName, artistName, state);
     }
 
     const toggleIcon = state === "playing" ? 'pause.png' : 'play.png';
