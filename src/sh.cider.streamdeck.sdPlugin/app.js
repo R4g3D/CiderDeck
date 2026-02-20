@@ -106,11 +106,9 @@ Object.keys(actions).forEach(actionKey => {
             console.debug(`[DEBUG] [Context] Context added for ${actionKey}: ${context}`);
         }
 
-        // Immediately refresh playback-related actions when they become visible
-        // so page switches do not show stale song metadata/artwork.
-        if (actionKey === 'ciderLogoAction' || actionKey === 'ciderPlaybackAction' || actionKey === 'toggleAction') {
-            requestNowPlayingRefresh();
-        }
+        // Refresh full plugin state whenever any action appears
+        // so page switches do not show stale online/offline or stateful button data.
+        requestPluginStateRefresh();
     });
 
     action.onWillDisappear(({ context }) => {
@@ -552,18 +550,18 @@ function handleDisconnection() {
 
 async function pollNowPlaying() {
     if (!window.isConnected || !window.token) {
-        return;
-    }
-
-    const hasNowPlayingTile = Boolean(window.contexts?.ciderLogoAction?.length);
-    const hasPlaybackControl = Boolean(window.contexts?.ciderPlaybackAction?.length);
-    const hasPlaybackToggle = Boolean(window.contexts?.toggleAction?.length);
-
-    if (!hasNowPlayingTile && !hasPlaybackControl && !hasPlaybackToggle) {
+        // Validate redraw state when action appears while disconnected.
+        setOfflineStates();
         return;
     }
 
     try {
+        // Ensure non-stateful buttons are back to online state when visible.
+        const alwaysOnActions = ['skipAction', 'previousAction', 'playlistAction', 'volumeUpAction', 'volumeDownAction'];
+        alwaysOnActions.forEach(actionKey => {
+            window.contexts[actionKey]?.forEach(context => $SD.setState(context, 0));
+        });
+
         const data = await CiderDeckUtils.comRPC("GET", "now-playing");
         if (!data || data.status !== "ok" || !data.info || data.info === 0) {
             return;
@@ -571,13 +569,21 @@ async function pollNowPlaying() {
 
         CiderDeckPlayback.setManualData(data.info);
         CiderDeckPlayback.setAdaptiveData(data.info);
+        await CiderDeckPlayback.updatePlaybackModes();
+
+        if (window.contexts.ciderPlaybackAction[0]) {
+            CiderDeckVolume.initializeVolumeDisplay(actions.ciderPlaybackAction, window.contexts.ciderPlaybackAction[0]);
+        }
+
         CiderDeckPlayback.refreshNowPlayingTile?.();
     } catch (error) {
+        // If the API call fails during redraw, force offline visuals.
+        setOfflineStates();
         console.debug("[DEBUG] [Polling] now-playing poll failed:", error?.message || error);
     }
 }
 
-function requestNowPlayingRefresh() {
+function requestPluginStateRefresh() {
     // Run an immediate refresh plus short retries to handle page-switch timing.
     pollNowPlaying();
     setTimeout(pollNowPlaying, 400);
@@ -615,7 +621,11 @@ function handlePlaybackEvent({ data, type }) {
             break;
         case "playbackStatus.playbackStateDidChange":
             CiderDeckPlayback.setPlaybackStatus(data);
-            if (data) CiderDeckPlayback.setData(data);
+            if (data && typeof data === 'object') {
+                CiderDeckPlayback.setData(data);
+            } else {
+                CiderDeckPlayback.refreshNowPlayingTile?.();
+            }
             break;
         case "playbackStatus.playbackTimeDidChange":
             CiderDeckPlayback.setPlaybackStatus(data.isPlaying);

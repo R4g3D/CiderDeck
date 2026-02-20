@@ -48,16 +48,33 @@ function truncateOverlayText(ctx, text, maxWidth) {
 }
 
 function isPlaybackPaused(playbackState) {
+    return normalizePlaybackState(playbackState) !== 'playing';
+}
+
+function normalizePlaybackState(playbackState) {
+    if (playbackState && typeof playbackState === 'object') {
+        if (Object.prototype.hasOwnProperty.call(playbackState, 'state')) {
+            return normalizePlaybackState(playbackState.state);
+        }
+        if (Object.prototype.hasOwnProperty.call(playbackState, 'isPlaying')) {
+            return normalizePlaybackState(playbackState.isPlaying);
+        }
+        if (Object.prototype.hasOwnProperty.call(playbackState, 'isPaused')) {
+            return playbackState.isPaused ? 'paused' : 'playing';
+        }
+        return 'paused';
+    }
+
     if (typeof playbackState === 'string') {
-        return playbackState !== 'playing';
+        return playbackState.toLowerCase() === 'playing' ? 'playing' : 'paused';
     }
     if (typeof playbackState === 'number') {
-        return playbackState !== 1;
+        return playbackState === 1 ? 'playing' : 'paused';
     }
     if (typeof playbackState === 'boolean') {
-        return !playbackState;
+        return playbackState ? 'playing' : 'paused';
     }
-    return false;
+    return 'paused';
 }
 
 function renderNowPlayingTile(artworkDataUrl, title, artist, playbackState) {
@@ -249,7 +266,14 @@ async function setAdaptiveData({ inLibrary, inFavorites }) {
  * Updates display data based on current playback state
  * @param {Object} data - The playback data
  */
-async function setData({ state, attributes }) {
+async function setData(data) {
+    if (!data || typeof data !== 'object') {
+        logger.warn("Invalid playback data received for setData");
+        return;
+    }
+
+    const state = normalizePlaybackState(data.state ?? data.isPlaying ?? data.playbackState ?? data);
+    const attributes = data.attributes || data;
     setPlaybackStatus(state);
 
     const cacheManager = window.cacheManager;
@@ -408,7 +432,7 @@ async function setData({ state, attributes }) {
             $SD.setImage(context, `actions/playback/assets/${toggleIcon}`, 0);
         }
     });
-    logMessage += `State: ${state === "playing" ? "playing" : "paused"}`;
+    logMessage += `State: ${state}`;
 
     // Use our colorful logger instead of standard console.debug
     logger.debug(logMessage);
@@ -419,6 +443,11 @@ async function setData({ state, attributes }) {
  * @param {Object} playbackInfo - The full playback info from Cider
  */
 async function setManualData(playbackInfo) {
+    if (!playbackInfo || typeof playbackInfo !== 'object') {
+        logger.warn("Invalid playback data received for setManualData");
+        return;
+    }
+
     setData({ state: playbackInfo.state, attributes: playbackInfo });
 }
 
@@ -427,25 +456,24 @@ async function setManualData(playbackInfo) {
  * @param {string|number} status - The current playback status
  */
 async function setPlaybackStatus(status) {
-    // Convert string status to numeric value if needed
-    if (typeof status === 'string') {
-        status = status === 'playing' ? 1 : 0;
-    }
+    const normalizedState = normalizePlaybackState(status);
+    const normalizedStatus = normalizedState === 'playing' ? 1 : 0;
     
     const cacheManager = window.cacheManager;
     if (!cacheManager) {
         logger.warn("Cache manager not available, setting status directly");
         window.contexts.toggleAction?.forEach(context => {
-            $SD.setState(context, status ? 1 : 0);
+            $SD.setState(context, normalizedStatus ? 1 : 0);
         });
         return;
     }
     
-    if (cacheManager.checkAndUpdate('status', status)) {
+    if (cacheManager.checkAndUpdate('status', normalizedStatus)) {
         window.contexts.toggleAction?.forEach(context => {
-            $SD.setState(context, status ? 1 : 0);
+            $SD.setState(context, normalizedStatus ? 1 : 0);
         });
-        logger.debug(`Updated playback status: ${status ? "playing" : "paused"}`);
+        refreshNowPlayingTile();
+        logger.debug(`Updated playback status: ${normalizedState}`);
     }
 }
 
