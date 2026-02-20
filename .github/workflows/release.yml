@@ -32,7 +32,13 @@ jobs:
             throw "Version is missing in manifest.json"
           }
 
-          $artifactName = "CiderDeck-$pluginVersion.streamDeckPlugin"
+          $tagName = "${{ github.ref_name }}"
+          if ([string]::IsNullOrWhiteSpace($tagName)) {
+            $tagName = "manual-${{ github.run_number }}"
+          }
+          $tagName = $tagName -replace '[\\/:*?"<>|]', '-'
+
+          $artifactName = "CiderDeck-$pluginVersion-$tagName.streamDeckPlugin"
 
           "plugin_version=$pluginVersion" >> $env:GITHUB_OUTPUT
           "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
