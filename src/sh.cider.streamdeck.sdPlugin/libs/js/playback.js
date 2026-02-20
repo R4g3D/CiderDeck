@@ -52,15 +52,30 @@ function isPlaybackPaused(playbackState) {
     return normalizePlaybackState(playbackState) !== 'playing';
 }
 
+function firstDefined(...values) {
+    for (let i = 0; i < values.length; i++) {
+        if (values[i] !== undefined && values[i] !== null) {
+            return values[i];
+        }
+    }
+    return undefined;
+}
+
 function normalizePlaybackState(playbackState) {
     if (playbackState && typeof playbackState === 'object') {
-        if (Object.prototype.hasOwnProperty.call(playbackState, 'state')) {
+        if (Object.prototype.hasOwnProperty.call(playbackState, 'state') &&
+            playbackState.state !== undefined &&
+            playbackState.state !== null) {
             return normalizePlaybackState(playbackState.state);
         }
-        if (Object.prototype.hasOwnProperty.call(playbackState, 'isPlaying')) {
+        if (Object.prototype.hasOwnProperty.call(playbackState, 'isPlaying') &&
+            playbackState.isPlaying !== undefined &&
+            playbackState.isPlaying !== null) {
             return normalizePlaybackState(playbackState.isPlaying);
         }
-        if (Object.prototype.hasOwnProperty.call(playbackState, 'isPaused')) {
+        if (Object.prototype.hasOwnProperty.call(playbackState, 'isPaused') &&
+            playbackState.isPaused !== undefined &&
+            playbackState.isPaused !== null) {
             return playbackState.isPaused ? 'paused' : 'playing';
         }
         return 'paused';
@@ -280,11 +295,20 @@ async function setData(data) {
         return;
     }
 
-    const state = normalizePlaybackState(data.state ?? data.isPlaying ?? data.playbackState ?? data);
     const attributes = data.attributes || data;
+    const cacheManager = window.cacheManager;
+    const stateSource = firstDefined(
+        data.state,
+        data.isPlaying,
+        data.playbackState,
+        attributes?.state,
+        attributes?.isPlaying,
+        attributes?.playbackState,
+        cacheManager?.get('status')
+    );
+    const state = normalizePlaybackState(stateSource);
     setPlaybackStatus(state);
 
-    const cacheManager = window.cacheManager;
     if (!cacheManager) {
         logger.error("Cache manager is not available");
         return;
@@ -456,7 +480,7 @@ async function setManualData(playbackInfo) {
         return;
     }
 
-    setData({ state: playbackInfo.state, attributes: playbackInfo });
+    setData(playbackInfo);
 }
 
 /**
