@@ -551,7 +551,9 @@ function handleDisconnection() {
     setOfflineStates();
 }
 
-async function pollNowPlaying() {
+async function pollNowPlaying(options = {}) {
+    const forceTileRedraw = Boolean(options.forceTileRedraw);
+
     if (!window.isConnected || !window.token) {
         // Validate redraw state when action appears while disconnected.
         setOfflineStates();
@@ -578,7 +580,9 @@ async function pollNowPlaying() {
             CiderDeckVolume.initializeVolumeDisplay(actions.ciderPlaybackAction, window.contexts.ciderPlaybackAction[0]);
         }
 
-        CiderDeckPlayback.refreshNowPlayingTile?.();
+        if (forceTileRedraw) {
+            CiderDeckPlayback.refreshNowPlayingTile?.();
+        }
     } catch (error) {
         // If the API call fails during redraw, force offline visuals.
         setOfflineStates();
@@ -604,7 +608,7 @@ function requestPluginStateRefresh() {
     }
 
     // Run an immediate refresh plus short retries to handle page-switch timing.
-    pollNowPlaying();
+    pollNowPlaying({ forceTileRedraw: true });
     pluginRefreshRetryTimeout1 = setTimeout(() => {
         pollNowPlaying();
         pluginRefreshRetryTimeout1 = null;

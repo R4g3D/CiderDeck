@@ -480,7 +480,6 @@ async function setPlaybackStatus(status) {
         window.contexts.toggleAction?.forEach(context => {
             $SD.setState(context, normalizedStatus ? 1 : 0);
         });
-        refreshNowPlayingTile();
         logger.debug(`Updated playback status: ${normalizedState}`);
     }
 }
