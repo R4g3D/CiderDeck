@@ -23,6 +23,73 @@ document.addEventListener('DOMContentLoaded', function() {
     setupFunctionalTabSwitching();
 });
 
+function getValueByPath(obj, path) {
+    return path.split('.').reduce((current, key) => current?.[key], obj);
+}
+
+function setValueByPath(obj, path, value) {
+    const keys = path.split('.');
+    let target = obj;
+
+    for (let i = 0; i < keys.length - 1; i++) {
+        const key = keys[i];
+        if (!target[key] || typeof target[key] !== 'object' || Array.isArray(target[key])) {
+            target[key] = {};
+        }
+        target = target[key];
+    }
+
+    target[keys[keys.length - 1]] = value;
+}
+
+function calculateSliderPercent(input) {
+    const min = Number(input.min ?? 0);
+    const max = Number(input.max ?? 100);
+    const value = Number(input.value ?? min);
+    const range = max - min;
+
+    if (range <= 0) {
+        return 100;
+    }
+
+    return Math.round(((value - min) / range) * 100);
+}
+
+function formatSliderReadout(input) {
+    const value = Number(input.value);
+
+    switch (input.id) {
+        case 'volumeStep':
+            return `${value}%`;
+        case 'marqueeSpeed':
+            return `${value} ms`;
+        case 'marqueeLength':
+            return `${value} ch`;
+        case 'marqueeDelay':
+            return `${(value / 1000).toFixed(1)} s`;
+        default:
+            return `${calculateSliderPercent(input)}%`;
+    }
+}
+
+function updateSliderReadout(input) {
+    const readout = document.getElementById(`${input.id}-readout`);
+    if (!readout) return;
+    readout.textContent = formatSliderReadout(input);
+}
+
+function refreshSliderReadouts() {
+    document.querySelectorAll('input[type="range"]').forEach(updateSliderReadout);
+}
+
+function initializeSliderReadouts() {
+    document.querySelectorAll('input[type="range"]').forEach(input => {
+        updateSliderReadout(input);
+        input.addEventListener('input', () => updateSliderReadout(input));
+        input.addEventListener('change', () => updateSliderReadout(input));
+    });
+}
+
 /**
  * Handle settings updates from baseInspector
  * This is called when the action settings are received from Stream Deck
@@ -39,6 +106,7 @@ function handleSettingsUpdate(settings) {
     
     // Update UI state
     updateDependentControls();
+    refreshSliderReadouts();
 }
 
 /**
@@ -62,6 +130,7 @@ function handleGlobalSettingsUpdate(globalSettings) {
         
         // Update UI state
         updateDependentControls();
+        refreshSliderReadouts();
     }
 }
 
@@ -79,22 +148,14 @@ function initUI() {
     document.getElementById('rotationAction').addEventListener('change', function() {
         updateRotationControls();
     });
+
+    initializeSliderReadouts();
     
     // Save button: Apply temporary settings to actual settings and save to Stream Deck
     document.getElementById('save-settings').addEventListener('click', (event) => {
         event.preventDefault();
         
-        // First collect the current form values into tempSettings
         collectFormValues();
-        
-        // Apply temp settings to actual settings
-        baseInspector.actionSettings = JSON.parse(JSON.stringify(tempSettings));
-        
-        // Sync with global settings
-        baseInspector.syncActionToGlobalSettings();
-        
-        // Send the settings to Stream Deck
-        baseInspector.sendSettings();
         
         // Show a success message
         const button = document.getElementById('save-settings');
@@ -116,6 +177,7 @@ function initUI() {
         loadSettingsToUI(tempSettings);
         // Update dependent controls
         updateDependentControls();
+        refreshSliderReadouts();
     });
 
     // Handle range inputs with clickable spans
@@ -128,6 +190,7 @@ function initUI() {
                 // Trigger change event
                 const event = new Event('change');
                 input.dispatchEvent(event);
+                updateSliderReadout(input);
             }
         });
     });
@@ -165,6 +228,7 @@ function setupFunctionalTabSwitching() {
             
             // Update dependent controls
             updateDependentControls();
+            refreshSliderReadouts();
         });
     });
 }
@@ -180,14 +244,17 @@ function collectFormValues() {
         if (!settingName) return;
         
         // Update the setting in tempSettings based on element type
+        let value;
         if (element.type === 'checkbox') {
-            tempSettings[settingName] = element.checked;
+            value = element.checked;
         } else if (element.type === 'range' || element.type === 'number') {
             const numValue = parseInt(element.value, 10);
-            tempSettings[settingName] = isNaN(numValue) ? 0 : numValue;
-        } else if (element.value.trim() !== '') {
-            tempSettings[settingName] = element.value.trim();
+            value = isNaN(numValue) ? 0 : numValue;
+        } else {
+            value = element.value.trim();
         }
+
+        setValueByPath(tempSettings, settingName, value);
     });
 }
 
@@ -200,15 +267,19 @@ function loadSettingsToUI(settings) {
     // Get all form elements with data-setting attributes
     document.querySelectorAll('[data-setting]').forEach(element => {
         const settingName = element.dataset.setting;
-        if (!settingName || settings[settingName] === undefined) return;
+        if (!settingName) return;
+        const value = getValueByPath(settings, settingName);
+        if (value === undefined) return;
         
         // Update the UI element based on its type
         if (element.type === 'checkbox') {
-            element.checked = settings[settingName];
+            element.checked = value;
         } else if (element.type === 'range' || element.type === 'number' || element.type === 'text' || element.tagName === 'SELECT') {
-            element.value = settings[settingName];
+            element.value = value;
         }
     });
+
+    refreshSliderReadouts();
 }
 
 /**
@@ -244,6 +315,6 @@ function updateMarqueeControls() {
  */
 function updateRotationControls() {
     const rotationAction = document.getElementById('rotationAction').value;
-    const volumeStepContainer = document.getElementById('volumeStep').parentNode.parentNode;
+    const volumeStepContainer = document.getElementById('volume-step-item');
     volumeStepContainer.style.display = rotationAction === 'volume' ? 'flex' : 'none';
 }

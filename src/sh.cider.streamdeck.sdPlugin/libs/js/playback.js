@@ -23,6 +23,8 @@ const shuffleLogger = logger.category('Shuffle');
 const artworkLogger = window.CiderDeckLogger?.createLogger('Artwork') || logger;
 const nowPlayingTileLogger = logger.category('NowPlayingTile');
 let nowPlayingRenderRequestId = 0;
+const DIAL_SEEK_SECONDS = 5;
+const DIAL_PROGRESS_COLOR = '#e41b56';
 
 // Debounce function for logging
 const debounce = (func, wait) => {
@@ -91,6 +93,54 @@ function normalizePlaybackState(playbackState) {
         return playbackState ? 'playing' : 'paused';
     }
     return 'paused';
+}
+
+function formatClock(totalSeconds) {
+    if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
+        return '--:--';
+    }
+
+    const rounded = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(rounded / 3600);
+    const minutes = Math.floor((rounded % 3600) / 60);
+    const seconds = rounded % 60;
+
+    if (hours > 0) {
+        return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function getDialTimeDisplay(currentTime, duration) {
+    const mode = window.ciderDeckSettings?.dial?.timeDisplayMode || 'remaining';
+    const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
+    const safeCurrentTime = Number.isFinite(currentTime) ? Math.max(0, Math.min(currentTime, safeDuration || currentTime)) : 0;
+
+    if (mode === 'elapsed') {
+        return formatClock(safeCurrentTime);
+    }
+
+    if (!safeDuration) {
+        return '--:--';
+    }
+
+    const remaining = Math.max(safeDuration - safeCurrentTime, 0);
+    return `-${formatClock(remaining)}`;
+}
+
+function getDialArtworkPlaceholder() {
+    if (window.ciderDeckSettings?.dial?.showIcons === false) {
+        return "actions/assets/buttons/blank";
+    }
+    return "actions/assets/buttons/media-playlist";
+}
+
+function getDialVolumePlaceholder() {
+    if (window.ciderDeckSettings?.dial?.showIcons === false) {
+        return "actions/assets/buttons/blank";
+    }
+    return "actions/assets/buttons/volume-off";
 }
 
 function renderNowPlayingTile(artworkDataUrl, title, artist, playbackState) {
@@ -236,8 +286,10 @@ async function setDefaults() {
         window.contexts[actionKey]?.forEach(context => {
             if (actionKey === 'ciderPlaybackAction') {
                 const feedbackPayload = {
-                    "icon1": "actions/assets/buttons/media-playlist",
-                    "icon2": "actions/assets/buttons/volume-off",
+                    "icon1": getDialArtworkPlaceholder(),
+                    "icon2": getDialVolumePlaceholder(),
+                    "progressText": "--:--",
+                    "volumeText": "0%",
                     "title": "Cider - N/A",
                 };
                 $SD.setFeedback(context, feedbackPayload);
@@ -323,6 +375,7 @@ async function setData(data) {
     const songName = attributes.name;
     const artistName = attributes.artistName;
     const albumName = attributes.albumName;
+    const durationMs = firstDefined(attributes?.durationInMillis, data.durationInMillis);
     let shouldUpdateNowPlayingTile = false;
     const paused = isPlaybackPaused(state);
 
@@ -341,9 +394,13 @@ async function setData(data) {
                 if (window.contexts.ciderPlaybackAction && window.contexts.ciderPlaybackAction[0]) {
                     // Check if user wants to show artwork on dial or use default Cider logo
                     const showArtworkOnDial = window.ciderDeckSettings?.dial?.showArtworkOnDial ?? true;
+                    const showIcons = window.ciderDeckSettings?.dial?.showIcons ?? true;
                     const dialLogger = logger.category('Dial');
-                    dialLogger.debug(`Show artwork on dial: ${showArtworkOnDial}`);
-                    if (showArtworkOnDial) {
+                    dialLogger.debug(`Show artwork on dial: ${showArtworkOnDial}, show icons: ${showIcons}`);
+                    if (!showIcons) {
+                        $SD.setFeedback(window.contexts.ciderPlaybackAction[0], { "icon1": "actions/assets/buttons/blank" });
+                        dialLogger.debug(`Set blank icon on dial`);
+                    } else if (showArtworkOnDial) {
                         $SD.setFeedback(window.contexts.ciderPlaybackAction[0], { "icon1": art64 });
                         dialLogger.debug(`Set artwork on dial`);
                     } else {
@@ -372,7 +429,7 @@ async function setData(data) {
         };
         
         // Format the text using the custom format from dial settings (or fallback to default)
-        const customFormat = dialSettings.customFormat || '{song} - {album}';
+        const customFormat = dialSettings.customFormat || '{artist} - {song}';
         const textPrefix = dialSettings.textPrefix || '';
         const fullTitle = textPrefix + formatSongInfo(customFormat, songInfo);
         
@@ -443,6 +500,12 @@ async function setData(data) {
     
     if (cacheManager.checkAndUpdate('artist', artistName)) {
         shouldUpdateNowPlayingTile = true;
+    }
+
+    if (Number.isFinite(durationMs)) {
+        const durationSeconds = durationMs > 1000 ? durationMs / 1000 : durationMs;
+        cacheManager.set('currentPlaybackDuration', durationSeconds);
+        window.currentPlaybackDuration = durationSeconds;
     }
 
     if (lastNowPlayingPausedState !== paused) {
@@ -603,7 +666,7 @@ function formatSongInfo(template, songInfo) {
     // If no custom format is provided, use a default format
     if (!template || template === '') {
         formatLogger.debug("No template provided, using default format");
-        return `${songInfo.title || ''} - ${songInfo.album || ''}`;
+        return `${songInfo.artist || ''} - ${songInfo.title || ''}`;
     }
     
     formatLogger.debug(`Formatting with template: "${template}"`);
@@ -628,10 +691,14 @@ async function setPlaybackTime(time, duration) {
     const cacheManager = window.cacheManager;
     if (cacheManager) {
         cacheManager.set('currentPlaybackTime', time);
+        cacheManager.set('currentPlaybackDuration', duration);
     }
     window.currentPlaybackTime = time; // Backup in case cacheManager isn't available
+    window.currentPlaybackDuration = duration;
     
-    const progress = Math.round((time / duration) * 100);
+    const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
+    const progress = safeDuration > 0 ? Math.round((time / safeDuration) * 100) : 0;
+    const progressText = getDialTimeDisplay(time, safeDuration);
     
     // Create a specialized logger for playback time
     const timeLogger = logger.category('Time');
@@ -640,9 +707,40 @@ async function setPlaybackTime(time, duration) {
     // Update Stream Deck+ display if available
     if (window.contexts.ciderPlaybackAction && window.contexts.ciderPlaybackAction[0]) {
         const feedbackPayload = {
-            "indicator1": progress
+            "indicator1": progress,
+            "indicator1Color": DIAL_PROGRESS_COLOR,
+            "progressText": progressText
         };
         $SD.setFeedback(window.contexts.ciderPlaybackAction[0], feedbackPayload);
+    }
+}
+
+async function rotatePlaybackPosition(payload) {
+    const ticks = Number(payload?.ticks || 0);
+    if (!ticks) return;
+
+    const currentTime = window.cacheManager?.get('currentPlaybackTime') ?? window.currentPlaybackTime ?? 0;
+    const duration = window.cacheManager?.get('currentPlaybackDuration') ?? window.currentPlaybackDuration ?? 0;
+    const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
+    if (!safeDuration) return;
+
+    const nextPosition = Math.max(0, Math.min(safeDuration, currentTime + (ticks * DIAL_SEEK_SECONDS)));
+    await window.CiderDeckUtils.comRPC("POST", "seek", true, { position: nextPosition });
+    setPlaybackTime(nextPosition, safeDuration);
+}
+
+async function rotateTrackSkip(payload) {
+    const ticks = Number(payload?.ticks || 0);
+    if (!ticks) return;
+
+    const utils = window.CiderDeckUtils;
+    if (!utils?.comRPC) {
+        return;
+    }
+
+    const endpoint = ticks > 0 ? "next" : "previous";
+    for (let i = 0; i < Math.abs(ticks); i++) {
+        await utils.comRPC("POST", endpoint);
     }
 }
 
@@ -658,6 +756,8 @@ window.CiderDeckPlayback = {
     goBack,
     updatePlaybackModes,
     setPlaybackTime,
+    rotatePlaybackPosition,
+    rotateTrackSkip,
     refreshNowPlayingTile,
     formatSongInfo,
     getCurrentRepeatMode: () => currentRepeatMode,

@@ -1,0 +1,98 @@
+{
+    "$schema": "https://schemas.elgato.com/streamdeck/plugins/layout.json",
+    "id": "cider-playback",
+    "items": [
+        {
+            "key": "title",
+            "type": "text",
+            "rect": [12, 8, 176, 18],
+            "alignment": "left",
+            "font": {
+                "size": 14,
+                "weight": 500
+            },
+            "text-overflow": "fade",
+            "value": "Cider - N/A"
+        },
+        {
+            "key": "icon1",
+            "type": "pixmap",
+            "rect": [12, 34, 20, 20],
+            "value": "actions/assets/buttons/media-playlist"
+        },
+        {
+            "key": "indicator1",
+            "type": "bar",
+            "rect": [40, 39, 118, 10],
+            "subtype": 4,
+            "border_w": 0,
+            "bar_bg_c": "#585858",
+            "bar_fill_c": "#e41b56",
+            "range": {
+                "min": 0,
+                "max": 100
+            },
+            "value": 0
+        },
+        {
+            "key": "progressText",
+            "type": "text",
+            "rect": [162, 33, 26, 18],
+            "alignment": "right",
+            "color": "#ffffff",
+            "font": {
+                "size": 10,
+                "weight": 400
+            },
+            "text-overflow": "clip",
+            "value": "-0:00"
+        },
+        {
+            "key": "icon2",
+            "type": "pixmap",
+            "rect": [12, 62, 20, 20],
+            "value": "actions/assets/buttons/volume-off"
+        },
+        {
+            "key": "indicator2",
+            "type": "bar",
+            "rect": [40, 67, 118, 10],
+            "subtype": 4,
+            "border_w": 0,
+            "bar_bg_c": "#585858",
+            "bar_fill_c": "#ffffff",
+            "range": {
+                "min": 0,
+                "max": 100
+            },
+            "value": 0
+        },
+        {
+            "key": "volumeText",
+            "type": "text",
+            "rect": [162, 61, 26, 18],
+            "alignment": "right",
+            "color": "#ffffff",
+            "font": {
+                "size": 10,
+                "weight": 400
+            },
+            "text-overflow": "clip",
+            "value": "0%"
+        },
+        {
+            "key": "pressFlash",
+            "type": "text",
+            "rect": [0, 0, 200, 100],
+            "alignment": "center",
+            "background": "#ffffff",
+            "opacity": 0,
+            "font": {
+                "size": 1,
+                "weight": 400
+            },
+            "value": "",
+            "zOrder": 600
+        }
+    ]
+}

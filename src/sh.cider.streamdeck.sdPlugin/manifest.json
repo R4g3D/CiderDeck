@@ -30,7 +30,7 @@
 			"DisableAutomaticStates": true,
 			"Encoder": {
 				"Icon": "actions/assets/app/icon",
-				"layout": "$C1",
+				"layout": "layouts/cider-playback.json",
 				"TriggerDescription": {
 					"Push": "Mute/unmute the volume in Cider.",
 					"Left": "Lower the volume by 1% in Cider.",

@@ -23,6 +23,7 @@ class BaseInspector {
                 volumeStep: 1,
                 pressBehavior: 'togglePlay',
                 tapBehavior: 'addToLibrary',
+                timeDisplayMode: 'remaining',
                 marquee: {
                     enabled: true,
                     speed: 200,
@@ -30,7 +31,9 @@ class BaseInspector {
                     delay: 2000
                 },
                 showIcons: true,
-                showArtworkOnDial: true
+                showArtworkOnDial: true,
+                customFormat: '{artist} - {song}',
+                textPrefix: ''
             },
             songDisplay: {
                 fontSize: 16,
@@ -69,9 +72,12 @@ class BaseInspector {
         this.saveGlobalSettings = this.saveGlobalSettings.bind(this);
         this.loadActionSettings = this.loadActionSettings.bind(this);
         this.saveActionSettings = this.saveActionSettings.bind(this);
+        this.sendSettings = this.sendSettings.bind(this);
         this.addGlobalSettingsTab = this.addGlobalSettingsTab.bind(this);
         this.setupGlobalSettingsEvents = this.setupGlobalSettingsEvents.bind(this);
         this.setupTabSwitching = this.setupTabSwitching.bind(this);
+        this.getValueByPath = this.getValueByPath.bind(this);
+        this.setValueByPath = this.setValueByPath.bind(this);
     }
 
     /**
@@ -273,10 +279,9 @@ class BaseInspector {
                     value = settings.authorization?.rpcKey;
                 }
             } else {
-                // For action settings, just get the value directly
                 const settingName = element.dataset.setting;
                 if (!settingName) return;
-                value = settings[settingName];
+                value = this.getValueByPath(settings, settingName);
             }
             
             // Set the form field value based on its type
@@ -408,22 +413,25 @@ class BaseInspector {
      * Save action-specific settings back to Stream Deck
      */
     saveActionSettings() {
-        const newSettings = {};
+        const newSettings = JSON.parse(JSON.stringify(this.actionSettings || {}));
         
         document.querySelectorAll('[data-setting]').forEach(element => {
             const settingName = element.dataset.setting;
             if (!settingName) return;
             
+            let value;
             if (element.type === 'checkbox') {
-                newSettings[settingName] = element.checked;
+                value = element.checked;
             } else if (element.type === 'range' || element.type === 'number') {
                 const numValue = parseInt(element.value, 10);
-                newSettings[settingName] = isNaN(numValue) ? 0 : numValue;
+                value = isNaN(numValue) ? 0 : numValue;
             } else if (element.type === 'color') {
-                newSettings[settingName] = element.value;
-            } else if (element.value.trim() !== '') {
-                newSettings[settingName] = element.value.trim();
+                value = element.value;
+            } else {
+                value = element.value.trim();
             }
+
+            this.setValueByPath(newSettings, settingName, value);
         });
         
         // Update stored settings
@@ -510,6 +518,30 @@ class BaseInspector {
      */
     isObject(item) {
         return (item && typeof item === 'object' && !Array.isArray(item));
+    }
+
+    sendSettings() {
+        this.saveActionSettings();
+        this.saveGlobalSettings();
+    }
+
+    getValueByPath(obj, path) {
+        return path.split('.').reduce((current, key) => current?.[key], obj);
+    }
+
+    setValueByPath(obj, path, value) {
+        const keys = path.split('.');
+        let target = obj;
+
+        for (let i = 0; i < keys.length - 1; i++) {
+            const key = keys[i];
+            if (!this.isObject(target[key])) {
+                target[key] = {};
+            }
+            target = target[key];
+        }
+
+        target[keys[keys.length - 1]] = value;
     }
 }
 

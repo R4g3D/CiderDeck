@@ -17,6 +17,7 @@ class CacheManager {
             addedToLibrary: null,
             rating: null,
             currentPlaybackTime: null,
+            currentPlaybackDuration: null,
             songDisplaySettings: null
         };
     }

@@ -27,6 +27,36 @@
         .tab-content.active {
             display: block;
         }
+        .range-item .sdpi-item-value {
+            display: block;
+        }
+        .slider-with-readout {
+            width: 100%;
+        }
+        .slider-with-readout input[type="range"] {
+            width: 100%;
+        }
+        .range-meta {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            column-gap: 8px;
+            margin-top: 4px;
+            width: 100%;
+            color: #b8b8b8;
+            font-size: 8.5pt;
+        }
+        .range-meta .meta-left {
+            text-align: left;
+        }
+        .range-meta .meta-center {
+            text-align: center;
+            color: #d8d8d8;
+            font-variant-numeric: tabular-nums;
+        }
+        .range-meta .meta-right {
+            text-align: right;
+        }
     </style>
 </head>
 <body>
@@ -51,12 +81,17 @@
                     </select>
                 </div>
                 
-                <div class="sdpi-item">
+                <div class="sdpi-item range-item" id="volume-step-item">
                     <div class="sdpi-item-label">Volume Step</div>
                     <div class="sdpi-item-value">
-                        <span class="clickable" value="1">Fine</span>
-                        <input type="range" min="1" max="10" value="1" data-setting="volumeStep" id="volumeStep">
-                        <span class="clickable" value="10">Coarse</span>
+                        <div class="slider-with-readout">
+                            <input type="range" min="1" max="10" value="1" data-setting="volumeStep" id="volumeStep">
+                        </div>
+                        <div class="range-meta">
+                            <span class="clickable meta-left" value="1">Fine</span>
+                            <span class="meta-center" id="volumeStep-readout">1%</span>
+                            <span class="clickable meta-right" value="10">Coarse</span>
+                        </div>
                     </div>
                 </div>
                 
@@ -74,10 +109,11 @@
                 <div class="sdpi-item">
                     <div class="sdpi-item-label">Touch Behavior</div>
                     <select id="tapBehavior" data-setting="tapBehavior" class="sdpi-item-value select">
+                        <option value="none">None</option>
                         <option value="addToLibrary">Add to Library</option>
+                        <option value="favorite">Favorite</option>
+                        <option value="both">Favorite + Library</option>
                         <option value="dislike">Dislike</option>
-                        <option value="showQueue">Show Queue</option>
-                        <option value="playFavorites">Play Favorites</option>
                     </select>
                 </div>
             </div>
@@ -91,37 +127,60 @@
                     </div>
                 </div>
                 
-                <div class="sdpi-item" id="marquee-speed-container">
+                <div class="sdpi-item range-item" id="marquee-speed-container">
                     <div class="sdpi-item-label">Scroll Speed</div>
                     <div class="sdpi-item-value">
-                        <span class="clickable" value="100">Slow</span>
-                        <input type="range" min="100" max="300" value="200" data-setting="marquee.speed" id="marqueeSpeed">
-                        <span class="clickable" value="300">Fast</span>
+                        <div class="slider-with-readout">
+                            <input type="range" min="100" max="300" value="200" data-setting="marquee.speed" id="marqueeSpeed">
+                        </div>
+                        <div class="range-meta">
+                            <span class="clickable meta-left" value="300">Slower</span>
+                            <span class="meta-center" id="marqueeSpeed-readout">200 ms</span>
+                            <span class="clickable meta-right" value="100">Faster</span>
+                        </div>
                     </div>
                 </div>
                 
-                <div class="sdpi-item" id="marquee-length-container">
+                <div class="sdpi-item range-item" id="marquee-length-container">
                     <div class="sdpi-item-label">Display Length</div>
                     <div class="sdpi-item-value">
-                        <span class="clickable" value="10">Short</span>
-                        <input type="range" min="10" max="25" value="15" data-setting="marquee.length" id="marqueeLength">
-                        <span class="clickable" value="25">Long</span>
+                        <div class="slider-with-readout">
+                            <input type="range" min="10" max="25" value="15" data-setting="marquee.length" id="marqueeLength">
+                        </div>
+                        <div class="range-meta">
+                            <span class="clickable meta-left" value="10">Shorter</span>
+                            <span class="meta-center" id="marqueeLength-readout">15 ch</span>
+                            <span class="clickable meta-right" value="25">Longer</span>
+                        </div>
                     </div>
                 </div>
-                  <div class="sdpi-item" id="marquee-delay-container">
+                  <div class="sdpi-item range-item" id="marquee-delay-container">
                     <div class="sdpi-item-label">Pause Duration</div>
                     <div class="sdpi-item-value">
-                        <span class="clickable" value="1000">Short</span>
-                        <input type="range" min="1000" max="5000" value="2000" data-setting="marquee.delay" id="marqueeDelay">
-                        <span class="clickable" value="5000">Long</span>
+                        <div class="slider-with-readout">
+                            <input type="range" min="1000" max="5000" value="2000" data-setting="marquee.delay" id="marqueeDelay">
+                        </div>
+                        <div class="range-meta">
+                            <span class="clickable meta-left" value="1000">Shorter</span>
+                            <span class="meta-center" id="marqueeDelay-readout">2.0 s</span>
+                            <span class="clickable meta-right" value="5000">Longer</span>
+                        </div>
                     </div>
                 </div>
 
                 <div class="sdpi-item">
                     <div class="sdpi-item-label">Custom Format</div>
                     <div class="sdpi-item-value">
-                        <input id="customFormat" type="text" data-setting="customFormat" placeholder="{song} - {album}" class="sdProperty">
+                        <input id="customFormat" type="text" data-setting="customFormat" placeholder="{artist} - {song}" class="sdProperty">
                     </div>
+                </div>
+
+                <div class="sdpi-item">
+                    <div class="sdpi-item-label">Song Time Text</div>
+                    <select id="timeDisplayMode" data-setting="timeDisplayMode" class="sdpi-item-value select">
+                        <option value="remaining">Time Remaining</option>
+                        <option value="elapsed">Time Played</option>
+                    </select>
                 </div>
                 
                 <div class="sdpi-item">

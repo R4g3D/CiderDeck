@@ -31,6 +31,7 @@ let currentAppState = AppState.STARTING_UP;
 let pluginRefreshBurstActive = false;
 let pluginRefreshRetryTimeout1 = null;
 let pluginRefreshRetryTimeout2 = null;
+let dialTouchFlashTimeout = null;
 
 // Initialize actions and contexts
 const actions = {
@@ -109,6 +110,10 @@ Object.keys(actions).forEach(actionKey => {
             console.debug(`[DEBUG] [Context] Context added for ${actionKey}: ${context}`);
         }
 
+        if (actionKey === 'ciderPlaybackAction') {
+            $SD.setFeedbackLayout(context, 'layouts/cider-playback.json');
+        }
+
         // Refresh full plugin state whenever any action appears
         // so page switches do not show stale online/offline or stateful button data.
         requestPluginStateRefresh();
@@ -157,7 +162,7 @@ Object.keys(actions).forEach(actionKey => {
                 CiderDeckPlayback.goBack();
                 break;
             case 'likeAction':
-                CiderDeckLibrary.setRating(1);
+                CiderDeckLibrary.setRating(window.cacheManager.get('rating') === 1 ? 0 : 1);
                 break;
             case 'dislikeAction':
                 CiderDeckLibrary.setRating(-1);
@@ -193,22 +198,27 @@ Object.keys(actions).forEach(actionKey => {
     if (actionKey === 'ciderPlaybackAction') {
         action.onDialDown(() => {
             console.debug(`[DEBUG] [Action] ciderPlaybackAction dial pressed`);
-            // Get press behavior from the hierarchical settings
-            const pressBehavior = window.ciderDeckSettings?.dial?.pressBehavior || 'togglePlay';
+            const pressBehavior = window.ciderDeckSettings?.dial?.pressBehavior
+                ?? window.ciderDeckSettings?.pressBehavior
+                ?? window.pressBehavior
+                ?? 'togglePlay';
             
             switch (pressBehavior) {
                 case 'togglePlay':
                     CiderDeckUtils.comRPC("POST", "playpause");
-                    setTimeout(() => {
-                        CiderDeckUtils.comRPC("GET", "now-playing").then(data => {
-                            if (data && data.status === "ok") {
-                                CiderDeckPlayback.setManualData(data.info);
-                            }
-                        });
-                    }, 1000);
+                    refreshPlaybackStatusSoon();
                     break;
                 case 'mute':
                     CiderDeckVolume.handleVolumeChange(null, window.contexts.ciderPlaybackAction[0], 'mute');
+                    break;
+                case 'favorite':
+                    CiderDeckLibrary.setRating(window.cacheManager.get('rating') === 1 ? 0 : 1);
+                    break;
+                case 'shuffle':
+                    CiderDeckUtils.comRPC("POST", "toggle-shuffle");
+                    break;
+                case 'repeat':
+                    CiderDeckUtils.comRPC("POST", "toggle-repeat");
                     break;
                 default:
                     CiderDeckUtils.comRPC("POST", "playpause");
@@ -216,16 +226,37 @@ Object.keys(actions).forEach(actionKey => {
             }
         });
 
-        action.onDialRotate((jsonObj) => {
-            CiderDeckVolume.handleVolumeChange(actions.ciderPlaybackAction, window.contexts.ciderPlaybackAction[0], null, jsonObj.payload);
+        action.onDialRotate(async (jsonObj) => {
+            const rotationAction = window.ciderDeckSettings?.dial?.rotationAction
+                ?? window.ciderDeckSettings?.rotationAction
+                ?? window.rotationAction
+                ?? 'volume';
+
+            switch (rotationAction) {
+                case 'playbackPos':
+                    await CiderDeckPlayback.rotatePlaybackPosition(jsonObj.payload);
+                    break;
+                case 'skipTrack':
+                    await CiderDeckPlayback.rotateTrackSkip(jsonObj.payload);
+                    break;
+                case 'volume':
+                default:
+                    CiderDeckVolume.handleVolumeChange(actions.ciderPlaybackAction, window.contexts.ciderPlaybackAction[0], null, jsonObj.payload);
+                    break;
+            }
         });
         
         action.onTouchTap(() => {
             console.debug(`[DEBUG] [Action] ciderPlaybackAction touch tapped`);
-            // Get tap behavior from the hierarchical settings
-            const tapBehavior = window.ciderDeckSettings?.dial?.tapBehavior || 'addToLibrary';
+            triggerDialTouchFlash(window.contexts.ciderPlaybackAction[0]);
+            const tapBehavior = window.ciderDeckSettings?.dial?.tapBehavior
+                ?? window.ciderDeckSettings?.tapBehavior
+                ?? window.tapBehavior
+                ?? 'addToLibrary';
             
             switch (tapBehavior) {
+                case 'none':
+                    break;
                 case 'addToLibrary':
                     CiderDeckLibrary.addToLibrary();
                     break;
@@ -235,6 +266,9 @@ Object.keys(actions).forEach(actionKey => {
                 case 'both':
                     CiderDeckLibrary.addToLibrary();
                     CiderDeckLibrary.setRating(1);
+                    break;
+                case 'dislike':
+                    CiderDeckLibrary.setRating(-1);
                     break;
                 default:
                     CiderDeckLibrary.addToLibrary();
@@ -269,6 +303,7 @@ const defaultSettings = {
         volumeStep: 1,
         pressBehavior: 'togglePlay',
         tapBehavior: 'addToLibrary',
+        timeDisplayMode: 'remaining',
         marquee: {
             enabled: true,
             speed: 200,
@@ -277,7 +312,7 @@ const defaultSettings = {
         },
         showIcons: true,
         showArtworkOnDial: true,
-        customFormat: '{song} - {album}',
+        customFormat: '{artist} - {song}',
         textPrefix: ''
     },
     songDisplay: {
@@ -328,12 +363,18 @@ function updateSettings(settings) {
                        mergedSettings.marqueeSettings?.length ?? 15,
         
         // Behavior settings
+        rotationAction: mergedSettings.dial?.rotationAction ?? 'volume',
         tapBehavior: mergedSettings.dial?.tapBehavior ?? 
                     mergedSettings.tapSettings?.tapBehavior ?? 'addToLibrary',
         volumeStep: mergedSettings.dial?.volumeStep ?? 
                    mergedSettings.knobSettings?.volumeStep ?? 1,
         pressBehavior: mergedSettings.dial?.pressBehavior ?? 
                       mergedSettings.knobSettings?.pressBehavior ?? 'togglePlay',
+        timeDisplayMode: mergedSettings.dial?.timeDisplayMode ?? 'remaining',
+        showIcons: mergedSettings.dial?.showIcons ?? true,
+        showArtworkOnDial: mergedSettings.dial?.showArtworkOnDial ?? true,
+        dialCustomFormat: mergedSettings.dial?.customFormat ?? '{artist} - {song}',
+        dialTextPrefix: mergedSettings.dial?.textPrefix ?? '',
         
         // Authentication
         token: mergedSettings.global?.authorization?.rpcKey ?? 
@@ -356,6 +397,69 @@ function updateSettings(settings) {
         currentAppState = AppState.STARTING_UP;
         startupProcess();
     }
+}
+
+function refreshPlaybackStatusSoon() {
+    setTimeout(() => {
+        CiderDeckUtils.comRPC("GET", "now-playing").then(data => {
+            if (data && data.status === "ok") {
+                CiderDeckPlayback.setManualData(data.info);
+            }
+        });
+    }, 1000);
+}
+
+function getDialArtworkFallbackIcon(dialSettings = window.ciderDeckSettings?.dial) {
+    if (dialSettings?.showIcons === false) {
+        return "actions/assets/buttons/blank";
+    }
+    return "actions/assets/buttons/media-playlist";
+}
+
+function getDialVolumeFallbackIcon(dialSettings = window.ciderDeckSettings?.dial) {
+    if (dialSettings?.showIcons === false) {
+        return "actions/assets/buttons/blank";
+    }
+    return "actions/assets/buttons/volume-off";
+}
+
+function createDialTouchFlashOverlay(opacity) {
+    return {
+        key: "pressFlash",
+        type: "text",
+        rect: [0, 0, 200, 100],
+        alignment: "center",
+        background: "#ffffff",
+        opacity,
+        font: {
+            size: 1,
+            weight: 400
+        },
+        value: "",
+        zOrder: 600
+    };
+}
+
+function triggerDialTouchFlash(context) {
+    if (!context) {
+        return;
+    }
+
+    if (dialTouchFlashTimeout) {
+        clearTimeout(dialTouchFlashTimeout);
+        dialTouchFlashTimeout = null;
+    }
+
+    $SD.setFeedback(context, {
+        pressFlash: createDialTouchFlashOverlay(0.16)
+    });
+
+    dialTouchFlashTimeout = setTimeout(() => {
+        $SD.setFeedback(context, {
+            pressFlash: createDialTouchFlashOverlay(0)
+        });
+        dialTouchFlashTimeout = null;
+    }, 120);
 }
 
 $SD.onDidReceiveGlobalSettings(({ payload }) => {
@@ -423,22 +527,36 @@ Object.keys(actions).forEach(actionKey => {
                 if (artwork) {
                     CiderDeckUtils.getBase64Image(artwork).then(art64 => {
                         const showArtworkOnDial = payload.settings.showArtworkOnDial ?? true;
+                        const showIcons = payload.settings.showIcons ?? true;
                         if (window.contexts.ciderPlaybackAction[0]) {
-                            if (showArtworkOnDial) {
+                            if (!showIcons) {
+                                $SD.setFeedback(window.contexts.ciderPlaybackAction[0], { "icon1": "actions/assets/buttons/blank" });
+                            } else if (showArtworkOnDial) {
                                 $SD.setFeedback(window.contexts.ciderPlaybackAction[0], { "icon1": art64 });
                             } else {
                                 $SD.setFeedback(window.contexts.ciderPlaybackAction[0], { "icon1": "actions/assets/buttons/media-playlist" });
                             }
                         }
                     });
+                } else if (window.contexts.ciderPlaybackAction[0]) {
+                    $SD.setFeedback(window.contexts.ciderPlaybackAction[0], {
+                        "icon1": getDialArtworkFallbackIcon(payload.settings)
+                    });
                 }
                 
                 // Also update current song title display if needed
                 const currentSong = cacheManager.get('song');
+                const currentArtist = cacheManager.get('artist');
                 const currentAlbum = cacheManager.get('album');
                 
                 if (currentSong) {
-                    const fullTitle = `${currentSong} - ${currentAlbum || ''}`;
+                    const customFormat = payload.settings.customFormat || '{artist} - {song}';
+                    const textPrefix = payload.settings.textPrefix || '';
+                    const fullTitle = textPrefix + CiderDeckPlayback.formatSongInfo(customFormat, {
+                        title: currentSong,
+                        artist: currentArtist,
+                        album: currentAlbum
+                    });
                     CiderDeckMarquee.clearMarquee();
                     
                     const marqueeSettings = payload.settings.marquee || {};
@@ -455,6 +573,11 @@ Object.keys(actions).forEach(actionKey => {
                 
                 // Update volume display if needed
                 if (window.contexts.ciderPlaybackAction[0]) {
+                    const currentPlaybackTime = cacheManager.get('currentPlaybackTime');
+                    const currentPlaybackDuration = cacheManager.get('currentPlaybackDuration');
+                    if (currentPlaybackTime !== null && currentPlaybackDuration !== null) {
+                        CiderDeckPlayback.setPlaybackTime(currentPlaybackTime, currentPlaybackDuration);
+                    }
                     CiderDeckVolume.initializeVolumeDisplay(actions.ciderPlaybackAction, window.contexts.ciderPlaybackAction[0]);
                 }
             }
@@ -730,10 +853,12 @@ function setOfflineStates() {
 
         if (actionKey === 'ciderPlaybackAction') {
             const feedbackPayload = {
-                "icon1": "actions/assets/buttons/media-playlist",
-                "icon2": "actions/assets/buttons/volume-off",
+                "icon1": getDialArtworkFallbackIcon(),
+                "icon2": getDialVolumeFallbackIcon(),
                 "indicator1": 0,
                 "indicator2": 0,
+                "progressText": "--:--",
+                "volumeText": "0%",
                 "title": "Cider - Offline",
             };
             contexts.forEach(context => {
@@ -759,8 +884,10 @@ function resetStates() {
 
             if (actionKey === 'ciderPlaybackAction') {
                 const feedbackPayload = {
-                    "icon1": "actions/assets/buttons/media-playlist",
-                    "icon2": "actions/assets/buttons/volume-off",
+                    "icon1": getDialArtworkFallbackIcon(),
+                    "icon2": getDialVolumeFallbackIcon(),
+                    "progressText": "--:--",
+                    "volumeText": "0%",
                     "title": "Cider - N/A",
                 };
                 $SD.setFeedback(context, feedbackPayload);

@@ -50,9 +50,14 @@ async function handleVolumeChange(action, context, direction, payload) {
             isMuted = false;
             newVolume = previousVolume;
         } else if (direction === 'mute') {
-            isMuted = !isMuted;
-            previousVolume = currentVolume;
-            newVolume = isMuted ? 0 : previousVolume;
+            if (!isMuted) {
+                previousVolume = currentVolume;
+                isMuted = true;
+                newVolume = 0;
+            } else {
+                isMuted = false;
+                newVolume = previousVolume ?? currentVolume;
+            }
         } else if (direction === 'up' || direction === 'down') {
             newVolume = direction === 'up' 
                 ? Math.min(currentVolume + volumeStep / 100, 1) 
@@ -96,7 +101,10 @@ function updateVolumeDisplay(context, volume) {
     
     // Determine the appropriate icon based on volume level
     let iconName;
-    if (volumePercentage === 0) {
+    const showIcons = window.ciderDeckSettings?.dial?.showIcons ?? true;
+    if (!showIcons) {
+        iconName = "blank";
+    } else if (volumePercentage === 0) {
         iconName = "volume-off";
     } else if (volumePercentage <= 50) {
         iconName = "volume-down-1";
@@ -108,7 +116,8 @@ function updateVolumeDisplay(context, volume) {
     
     const feedbackPayload = {
         "indicator2": volumePercentage,
-        "icon2": `actions/assets/buttons/${iconName}`
+        "icon2": `actions/assets/buttons/${iconName}`,
+        "volumeText": `${volumePercentage}%`
     };
     $SD.setFeedback(context, feedbackPayload);
 }
