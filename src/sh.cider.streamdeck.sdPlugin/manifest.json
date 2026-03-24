@@ -227,6 +227,29 @@
 			"PropertyInspectorPath": "actions/inspectors/playlist-inspector.html"
 		},
 		{
+			"Icon": "actions/assets/app/icon",
+			"Name": "Album Art Tile",
+			"Controllers": ["Keypad"],
+			"DisableAutomaticStates": true,
+			"Encoder": {
+				"layout": "$B1",
+				"TriggerDescription": {
+					"Touch": "Displays one slice of the current album artwork."
+				}
+			},
+			"States": [
+				{
+					"Image": "actions/assets/buttons/icon"
+				},
+				{
+					"Image": "actions/assets/buttons/offline/icon"
+				}
+			],
+			"Tooltip": "Displays one tile of the current album artwork so you can build larger album-art grids.",
+			"UUID": "sh.cider.streamdeck.albumartgrid",
+			"PropertyInspectorPath": "actions/inspectors/album-art-grid-inspector.html"
+		},
+		{
 			"Icon": "actions/assets/app/thumbs-down",
 			"Name": "Dislike",
 			"Controllers": ["Keypad"],

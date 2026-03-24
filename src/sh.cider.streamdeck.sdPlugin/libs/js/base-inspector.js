@@ -63,6 +63,12 @@ class BaseInspector {
             playlist: {
                 playlistId: '',
                 shouldShuffle: false
+            },
+            albumArtGrid: {
+                gridSize: 2,
+                tileRow: 1,
+                tileColumn: 1,
+                fitMode: 'cover'
             }
         };
 

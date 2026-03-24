@@ -294,11 +294,16 @@ async function setDefaults() {
                 };
                 $SD.setFeedback(context, feedbackPayload);
                 logger.info("Set default feedback for Cider Playback Action");
+            } else if (actionKey === 'albumArtGridAction') {
+                $SD.setState(context, 0);
+                $SD.setImage(context, "actions/assets/buttons/icon", 0);
             } else {
                 $SD.setState(context, 0);
             }
         });
     });
+
+    window.CiderDeckAlbumArtGrid?.setDefaultStates();
 }
 
 /**
@@ -366,7 +371,8 @@ async function setData(data) {
         return;
     }
 
-    let artwork = cacheManager.get('artwork');
+    const previousArtwork = cacheManager.get('artwork');
+    let artwork = previousArtwork;
 
     if (attributes?.artwork) {
         artwork = attributes.artwork?.url?.replace('{w}', attributes?.artwork?.width).replace('{h}', attributes?.artwork?.height);
@@ -384,7 +390,11 @@ async function setData(data) {
     
     let logMessage = "[DEBUG] [Playback] ";
     
-    if (cacheManager.checkAndUpdate('artwork', artwork) && artwork) {
+    if (cacheManager.checkAndUpdate('artwork', artwork)) {
+        window.CiderDeckAlbumArtGrid?.notifyArtworkChanged(previousArtwork, artwork);
+    }
+
+    if (previousArtwork !== artwork && artwork) {
         shouldUpdateNowPlayingTile = true;
         artworkLogger.debug(`Updating artwork from: ${artwork}`);
         const utils = window.CiderDeckUtils;

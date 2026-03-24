@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Album Art Grid Settings</title>
+    <link rel="stylesheet" href="../../libs/css/sdpi.css">
+</head>
+<body>
+    <div class="sdpi-wrapper">
+        <div class="sdpi-heading">Album Art Grid Settings</div>
+        <div class="sdpi-description">Configure which slice of the current album artwork this button should display.</div>
+
+        <form id="album-art-grid-settings">
+            <div class="sdpi-item">
+                <div class="sdpi-item-label">Grid Size</div>
+                <select id="gridSize" class="sdpi-item-value select" data-setting="gridSize">
+                    <option value="1">1 x 1</option>
+                    <option value="2">2 x 2</option>
+                    <option value="3">3 x 3</option>
+                    <option value="4">4 x 4</option>
+                    <option value="5">5 x 5</option>
+                    <option value="6">6 x 6</option>
+                </select>
+            </div>
+
+            <div class="sdpi-item">
+                <div class="sdpi-item-label">Tile Row</div>
+                <select id="tileRow" class="sdpi-item-value select" data-setting="tileRow"></select>
+            </div>
+
+            <div class="sdpi-item">
+                <div class="sdpi-item-label">Tile Column</div>
+                <select id="tileColumn" class="sdpi-item-value select" data-setting="tileColumn"></select>
+            </div>
+
+            <div class="sdpi-item">
+                <div class="sdpi-item-label">Fit Mode</div>
+                <select id="fitMode" class="sdpi-item-value select" data-setting="fitMode">
+                    <option value="cover">Cover</option>
+                    <option value="contain">Contain</option>
+                </select>
+            </div>
+
+            <div class="sdpi-item">
+                <button id="save-settings" class="sdpi-item-value">Save Settings</button>
+            </div>
+
+            <div class="sdpi-item">
+                <button id="reset-settings" class="sdpi-item-value">Reset to Defaults</button>
+            </div>
+        </form>
+    </div>
+
+    <script src="../../libs/js/constants.js"></script>
+    <script src="../../libs/js/utils.js"></script>
+    <script src="../../libs/js/events.js"></script>
+    <script src="../../libs/js/api.js"></script>
+    <script src="../../libs/js/property-inspector.js"></script>
+    <script src="../../libs/js/dynamic-styles.js"></script>
+    <script src="../../libs/js/base-inspector.js"></script>
+    <script src="album-art-grid-inspector.js"></script>
+</body>
+</html>

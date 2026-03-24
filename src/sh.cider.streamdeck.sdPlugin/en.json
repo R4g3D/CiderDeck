@@ -18,6 +18,10 @@
     "Name": "Play Playlist",
     "Tooltip": "Starts a configured Apple Music playlist in Cider."
   },
+  "sh.cider.streamdeck.albumartgrid": {
+    "Name": "Album Art Tile",
+    "Tooltip": "Displays one tile of the current album artwork so you can build larger album-art grids."
+  },
   "sh.cider.streamdeck.skip": {
     "Name": "Skip", 
     "Tooltip": "Provides a tile to skip the currently playing song in Cider."

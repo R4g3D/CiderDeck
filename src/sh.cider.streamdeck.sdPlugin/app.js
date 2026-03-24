@@ -14,6 +14,7 @@
 /// <reference path="libs/js/playback.js" />
 /// <reference path="libs/js/library.js" />
 /// <reference path="libs/js/volume.js" />
+/// <reference path="libs/js/album-art-grid.js" />
 /// <reference path="libs/js/song-display.js" />
 
 // ==========================================================================
@@ -44,6 +45,7 @@ const actions = {
     dislikeAction: new Action('sh.cider.streamdeck.dislike'),
     addToLibraryAction: new Action('sh.cider.streamdeck.addtolibrary'),
     playlistAction: new Action('sh.cider.streamdeck.playlist'),
+    albumArtGridAction: new Action('sh.cider.streamdeck.albumartgrid'),
     volumeUpAction: new Action('sh.cider.streamdeck.volumeup'),
     volumeDownAction: new Action('sh.cider.streamdeck.volumedown'),
     ciderLogoAction: new Action('sh.cider.streamdeck.ciderlogo'),
@@ -63,6 +65,7 @@ const offlineStates = {
     'sh.cider.streamdeck.volumedown': 1,
     'sh.cider.streamdeck.addtolibrary': 2,
     'sh.cider.streamdeck.playlist': 1,
+    'sh.cider.streamdeck.albumartgrid': 1,
     'sh.cider.streamdeck.dislike': 2,
     'sh.cider.streamdeck.like': 2,
     'sh.cider.streamdeck.skip': 1,
@@ -75,6 +78,27 @@ window.isConnected = false;
 
 // Ensure window.contexts is initialized
 window.contexts = window.contexts || {};
+window.actionContextSettings = window.actionContextSettings || {};
+
+function storeContextSettings(actionKey, context, details = {}) {
+    if (!actionKey || !context) {
+        return;
+    }
+
+    window.actionContextSettings[actionKey] = window.actionContextSettings[actionKey] || {};
+    window.actionContextSettings[actionKey][context] = {
+        ...(window.actionContextSettings[actionKey][context] || {}),
+        ...details
+    };
+}
+
+function removeContextSettings(actionKey, context) {
+    if (!actionKey || !context || !window.actionContextSettings[actionKey]) {
+        return;
+    }
+
+    delete window.actionContextSettings[actionKey][context];
+}
 
 // ==========================================================================
 //  Initialization and Setup
@@ -94,6 +118,14 @@ $SD.onConnected(() => {
     $SD.getGlobalSettings();
 });
 
+$SD.onDeviceDidConnect(({ device, deviceInfo }) => {
+    window.CiderDeckAlbumArtGrid?.registerDevice(device, deviceInfo);
+});
+
+$SD.onDeviceDidDisconnect(({ device }) => {
+    window.CiderDeckAlbumArtGrid?.unregisterDevice(device);
+});
+
 // ==========================================================================
 //  Context Management
 // ==========================================================================
@@ -110,8 +142,21 @@ Object.keys(actions).forEach(actionKey => {
             console.debug(`[DEBUG] [Context] Context added for ${actionKey}: ${context}`);
         }
 
+        storeContextSettings(actionKey, context, {
+            settings: payload?.settings || {},
+            device: payload?.device || null
+        });
+
         if (actionKey === 'ciderPlaybackAction') {
             $SD.setFeedbackLayout(context, 'layouts/cider-playback.json');
+        }
+
+        if (actionKey === 'albumArtGridAction') {
+            window.CiderDeckAlbumArtGrid?.registerContext(context, {
+                device: payload?.device || null,
+                settings: payload?.settings || {}
+            });
+            window.CiderDeckAlbumArtGrid?.refreshContext(context);
         }
 
         // Refresh full plugin state whenever any action appears
@@ -124,6 +169,11 @@ Object.keys(actions).forEach(actionKey => {
         if (index > -1) {
             window.contexts[actionKey].splice(index, 1);
             console.debug(`[DEBUG] [Context] Context removed for ${actionKey}: ${context}`);
+        }
+        removeContextSettings(actionKey, context);
+
+        if (actionKey === 'albumArtGridAction') {
+            window.CiderDeckAlbumArtGrid?.unregisterContext(context);
         }
 
         if (actionKey === 'ciderPlaybackAction' || actionKey === 'ciderLogoAction') {
@@ -172,6 +222,9 @@ Object.keys(actions).forEach(actionKey => {
                 break;
             case 'playlistAction':
                 CiderDeckLibrary.playPlaylist(jsonObj?.payload?.settings || {});
+                break;
+            case 'albumArtGridAction':
+                window.CiderDeckAlbumArtGrid?.refreshContext(jsonObj?.context);
                 break;
             case 'volumeUpAction':
                 CiderDeckVolume.handleVolumeChange(null, null, 'up');
@@ -297,6 +350,12 @@ const defaultSettings = {
     playlist: {
         playlistId: '',
         shouldShuffle: false
+    },
+    albumArtGrid: {
+        gridSize: 2,
+        tileRow: 1,
+        tileColumn: 1,
+        fitMode: 'cover'
     },
     dial: {
         rotationAction: 'volume',
@@ -474,6 +533,20 @@ $SD.onDidReceiveGlobalSettings(({ payload }) => {
 // Add listeners for each action to handle direct PI notifications
 Object.keys(actions).forEach(actionKey => {
     const action = actions[actionKey];
+
+    action.onDidReceiveSettings(({ context, payload }) => {
+        if (!context) {
+            return;
+        }
+
+        storeContextSettings(actionKey, context, {
+            settings: payload?.settings || {}
+        });
+
+        if (actionKey === 'albumArtGridAction') {
+            window.CiderDeckAlbumArtGrid?.updateContextSettings(context, payload?.settings || {});
+        }
+    });
     
     // Listen for direct messages from Property Inspector
     action.onSendToPlugin((data) => {
@@ -580,6 +653,13 @@ Object.keys(actions).forEach(actionKey => {
                     }
                     CiderDeckVolume.initializeVolumeDisplay(actions.ciderPlaybackAction, window.contexts.ciderPlaybackAction[0]);
                 }
+            }
+
+            if (payload.actionType === 'albumArtGrid' && data.context) {
+                storeContextSettings(actionKey, data.context, {
+                    settings: payload.settings || {}
+                });
+                window.CiderDeckAlbumArtGrid?.updateContextSettings(data.context, payload.settings || {});
             }
         }
         
@@ -831,6 +911,7 @@ async function initialize() {
 // ==========================================================================
 
 function setOfflineStates() {
+    window.CiderDeckAlbumArtGrid?.setOfflineStates();
     Object.keys(actions).forEach(actionKey => {
         const contexts = window.contexts[actionKey] || [];
         const uuid = actions[actionKey].UUID;
@@ -869,6 +950,7 @@ function setOfflineStates() {
 }
 
 function resetStates() {
+    window.CiderDeckAlbumArtGrid?.setDefaultStates();
     Object.keys(actions).forEach(actionKey => {
         const contexts = window.contexts[actionKey] || [];
         contexts.forEach(context => {
